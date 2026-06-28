@@ -185,6 +185,31 @@ h3 {
   font-size: 0.92rem;
 }
 
+.first-use-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  background: #ecfeff;
+  color: #164e63;
+}
+
+.first-use-note h2 {
+  margin-bottom: 2px;
+  font-size: 1rem;
+}
+
+.first-use-note p {
+  margin-bottom: 0;
+  color: #155e75;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
 .normalization-page {
   min-height: calc(100vh - 36px);
   display: grid;
@@ -512,6 +537,11 @@ h3 {
   opacity: 0.58;
 }
 
+.file-button.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .button.primary {
   border-color: var(--accent);
   background: var(--accent);
@@ -624,11 +654,17 @@ h3 {
 
   .top-actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .menu-wrap {
+    justify-self: start;
   }
 
   .mode-toggle {
     width: 100%;
+    min-width: 0;
   }
 
   #practiceMode {
@@ -664,9 +700,18 @@ h3 {
     grid-template-columns: 1fr 1fr;
   }
 
+  .control-row .record {
+    grid-column: 1 / -1;
+  }
+
   .button,
   .file-button {
     width: 100%;
+  }
+
+  .first-use-note {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

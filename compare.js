@@ -1,9 +1,12 @@
+import { toneTemplates } from "./data.js";
+
 export function compareContours(targetPoints, learnerPoints, toneId) {
   if (!learnerPoints || learnerPoints.length < 4) {
     return {
       feedback: "Pitch was unclear. Try recording in a quieter room or holding the vowel longer.",
       cues: [],
-      segments: []
+      segments: [],
+      diagnostic: null
     };
   }
 
@@ -27,6 +30,7 @@ export function compareContours(targetPoints, learnerPoints, toneId) {
   const learnerMotion = amplitude(learner);
   const segments = buildSegments(errors);
   const cues = buildCues(errors, startDiff, endDiff, targetDelta, learnerDelta);
+  const diagnostic = buildTemplateDiagnostic(learner, toneId);
   const feedback = buildFeedback({
     toneId,
     startDiff,
@@ -34,10 +38,11 @@ export function compareContours(targetPoints, learnerPoints, toneId) {
     overallDiff,
     targetDelta,
     learnerDelta,
-    learnerMotion
+    learnerMotion,
+    diagnostic
   });
 
-  return { feedback, cues, segments };
+  return { feedback, cues, segments, diagnostic };
 }
 
 export function resample(points, count = 80) {
@@ -84,8 +89,14 @@ function buildFeedback(metrics) {
     overallDiff,
     targetDelta,
     learnerDelta,
-    learnerMotion
+    learnerMotion,
+    diagnostic
   } = metrics;
+  const diagnosticFeedback = buildDiagnosticFeedback(toneId, diagnostic);
+
+  if (diagnosticFeedback && diagnostic?.target?.meanAbs > 0.18) {
+    return diagnosticFeedback;
+  }
 
   if (toneId === "rising") {
     if (startDiff > 0.14) {
@@ -134,6 +145,10 @@ function buildFeedback(metrics) {
     }
   }
 
+  if (diagnosticFeedback) {
+    return diagnosticFeedback;
+  }
+
   if (Math.abs(startDiff) > 0.16) {
     return startDiff > 0
       ? "The contour starts too high. Lower the beginning and follow the target shape."
@@ -147,6 +162,93 @@ function buildFeedback(metrics) {
   }
 
   return "The contour is close enough to compare visually. Refine the highlighted region.";
+}
+
+function buildTemplateDiagnostic(learner, targetToneId) {
+  const comparisons = Object.entries(toneTemplates)
+    .map(([toneId, template]) => {
+      const templatePoints = resample(template.points, learner.length);
+      const diffs = templatePoints.map((templatePoint, index) => ({
+        t: templatePoint.t,
+        diff: learner[index].y - templatePoint.y,
+        abs: Math.abs(learner[index].y - templatePoint.y)
+      }));
+      const learnerStart = averageY(learner.slice(0, 14));
+      const learnerEnd = averageY(learner.slice(-14));
+      const templateStart = averageY(templatePoints.slice(0, 14));
+      const templateEnd = averageY(templatePoints.slice(-14));
+
+      return {
+        toneId,
+        meanAbs: mean(diffs.map((error) => error.abs)),
+        startDiff: learnerStart - templateStart,
+        endDiff: learnerEnd - templateEnd,
+        registerDiff: averageDiff(diffs),
+        deltaDiff: learnerEnd - learnerStart - (templateEnd - templateStart),
+        motionDiff: amplitude(learner) - amplitude(templatePoints)
+      };
+    })
+    .sort((a, b) => a.meanAbs - b.meanAbs);
+
+  const target = comparisons.find((comparison) => comparison.toneId === targetToneId) || null;
+  const closest = comparisons[0] || null;
+  const closestOther = comparisons.find((comparison) => comparison.toneId !== targetToneId) || null;
+  const isConfidentMismatch = Boolean(
+    target &&
+    closestOther &&
+    closestOther.meanAbs + 0.055 < target.meanAbs &&
+    target.meanAbs > 0.12
+  );
+
+  return {
+    target,
+    closest,
+    closestOther: isConfidentMismatch ? closestOther : null
+  };
+}
+
+function buildDiagnosticFeedback(toneId, diagnostic) {
+  const closestTone = diagnostic?.closestOther?.toneId;
+  if (!closestTone) {
+    return "";
+  }
+
+  if (toneId === "rising") {
+    if (closestTone === "high" || closestTone === "falling") {
+      return "The rising tone is sitting too high at the start. Begin in the low register, then lift through the end.";
+    }
+    return "The rising tone needs a clearer lift in the second half. Keep the beginning low and make the ending visibly higher.";
+  }
+
+  if (toneId === "falling") {
+    if (closestTone === "rising") {
+      return "The falling tone is moving the wrong direction. Start high and drop through the second half.";
+    }
+    return "The falling tone needs a clearer high-to-low drop. Start higher, then let the pitch fall more decisively.";
+  }
+
+  if (toneId === "high") {
+    if (closestTone === "rising") {
+      return "The high tone is arriving high too late. Start higher and keep the line in the high register.";
+    }
+    return "The high tone is dropping or sitting too low. Hold it high or let it rise slightly.";
+  }
+
+  if (toneId === "low") {
+    if (closestTone === "mid" || closestTone === "high") {
+      return "The low tone shape is close to level, but the register is too high. Keep the whole syllable lower.";
+    }
+    return "The low tone has too much movement. Keep it low and steadier through the syllable.";
+  }
+
+  if (toneId === "mid") {
+    if (closestTone === "low" || closestTone === "high") {
+      return "The mid tone shape is close to level, but its register is off. Aim for the middle band.";
+    }
+    return "The mid tone has too much contour movement. Hold it steadier in the middle band.";
+  }
+
+  return "";
 }
 
 function buildCues(errors, startDiff, endDiff, targetDelta, learnerDelta) {
@@ -232,4 +334,12 @@ function averageY(points) {
 function amplitude(points) {
   const values = points.map((point) => point.y);
   return Math.max(...values) - Math.min(...values);
+}
+
+function mean(values) {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }

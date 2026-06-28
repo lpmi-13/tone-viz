@@ -7,9 +7,11 @@ import { drawToneChart } from "./visualizer.js";
 const CALIBRATION_STORAGE_KEY = "thai-tone-visualizer-calibration-v1";
 const PASSIVE_RANGE_STORAGE_KEY = "thai-tone-visualizer-passive-range-v1";
 const NORMALIZATION_DISMISSED_STORAGE_KEY = "thai-tone-visualizer-normalization-dismissed-v1";
+const FIRST_USE_STORAGE_KEY = "thai-tone-visualizer-first-use-dismissed-v1";
 const PASSIVE_READY_SECONDS = 30;
 const PASSIVE_READY_FRAMES = 500;
 const PASSIVE_MAX_PITCHES = 4000;
+const HOLD_RECORDING_THRESHOLD_MS = 260;
 const CALIBRATION_LABELS = {
   low: "Low",
   normal: "Normal",
@@ -36,12 +38,17 @@ const state = {
     high: null
   },
   recording: null,
+  processingKind: null,
+  holdGesture: null,
+  suppressRecordClick: false,
   history: []
 };
 
 const elements = {
   topbar: document.querySelector("#topbar"),
   privacyNote: document.querySelector("#privacyNote"),
+  firstUseNote: document.querySelector("#firstUseNote"),
+  dismissFirstUse: document.querySelector("#dismissFirstUse"),
   normalizationMode: document.querySelector("#normalizationMode"),
   modeButtons: [...document.querySelectorAll("[data-mode]")],
   practiceMode: document.querySelector("#practiceMode"),
@@ -102,10 +109,11 @@ function bindEvents() {
 
   elements.playNatural.addEventListener("click", () => playSelectedTarget("natural"));
   elements.playSlow.addEventListener("click", () => playSelectedTarget("exaggerated"));
-  elements.recordPractice.addEventListener("click", () => toggleRecording("practice"));
-  elements.recordExplore.addEventListener("click", () => toggleRecording("explore"));
+  bindRecordControl(elements.recordPractice, () => "practice");
+  bindRecordControl(elements.recordExplore, () => "explore");
   elements.menuButton.addEventListener("click", toggleAppMenu);
   elements.voiceRangeMenuItem.addEventListener("click", openNormalizationFlow);
+  elements.dismissFirstUse.addEventListener("click", dismissFirstUse);
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements.appMenu.classList.contains("is-hidden")) {
       closeAppMenu();
@@ -117,7 +125,7 @@ function bindEvents() {
     }
   });
   for (const button of elements.calibrationButtons) {
-    button.addEventListener("click", () => toggleRecording(`calibration-${button.dataset.calibration}`));
+    bindRecordControl(button, () => `calibration-${button.dataset.calibration}`);
   }
   elements.saveCalibration.addEventListener("click", saveCalibration);
   elements.resetCalibration.addEventListener("click", resetCalibration);
@@ -127,6 +135,89 @@ function bindEvents() {
   elements.showPracticeTemplates.addEventListener("change", renderCharts);
   elements.showExploreTemplates.addEventListener("change", renderCharts);
   window.addEventListener("resize", renderCharts);
+}
+
+function bindRecordControl(button, getKind) {
+  button.addEventListener("click", (event) => {
+    if (state.suppressRecordClick) {
+      event.preventDefault();
+      return;
+    }
+
+    toggleRecording(getKind());
+  });
+
+  button.addEventListener("pointerdown", (event) => startHoldGesture(event, button, getKind()));
+  button.addEventListener("pointerup", finishHoldGesture);
+  button.addEventListener("pointercancel", finishHoldGesture);
+  button.addEventListener("lostpointercapture", finishHoldGesture);
+  button.addEventListener("contextmenu", (event) => {
+    if (state.holdGesture?.active) {
+      event.preventDefault();
+    }
+  });
+}
+
+function startHoldGesture(event, button, kind) {
+  if (button.disabled || event.pointerType === "mouse" && event.button !== 0) {
+    return;
+  }
+
+  clearHoldTimer();
+  const gesture = {
+    pointerId: event.pointerId,
+    kind,
+    active: false,
+    released: false,
+    timerId: window.setTimeout(() => {
+      if (state.holdGesture !== gesture || state.recording) {
+        return;
+      }
+
+      gesture.active = true;
+      state.suppressRecordClick = true;
+      setStatus(kind, "Starting microphone. Keep holding while you speak, then release to stop.");
+      gesture.startPromise = startRecording(kind).finally(() => {
+        if (gesture.released && state.recording?.kind === kind) {
+          stopRecording();
+        }
+      });
+    }, HOLD_RECORDING_THRESHOLD_MS)
+  };
+
+  state.holdGesture = gesture;
+  button.setPointerCapture?.(event.pointerId);
+}
+
+function finishHoldGesture(event) {
+  const gesture = state.holdGesture;
+  if (!gesture || event.pointerId !== gesture.pointerId) {
+    return;
+  }
+
+  clearHoldTimer();
+
+  if (gesture.active) {
+    event.preventDefault();
+    gesture.released = true;
+    state.suppressRecordClick = true;
+
+    if (state.recording?.kind === gesture.kind) {
+      stopRecording();
+    }
+
+    window.setTimeout(() => {
+      state.suppressRecordClick = false;
+    }, 450);
+  }
+
+  state.holdGesture = null;
+}
+
+function clearHoldTimer() {
+  if (state.holdGesture?.timerId) {
+    clearTimeout(state.holdGesture.timerId);
+  }
 }
 
 function setMode(mode) {
@@ -203,6 +294,7 @@ function renderVisibility() {
   const normalizing = state.normalizationActive;
   elements.topbar.classList.toggle("is-hidden", normalizing);
   elements.privacyNote.classList.toggle("is-hidden", normalizing);
+  elements.firstUseNote.classList.toggle("is-hidden", normalizing || hasDismissedFirstUse());
   elements.normalizationMode.classList.toggle("is-hidden", !normalizing);
   elements.practiceMode.classList.toggle("is-hidden", normalizing || state.mode !== "practice");
   elements.exploreMode.classList.toggle("is-hidden", normalizing || state.mode !== "explore");
@@ -210,6 +302,8 @@ function renderVisibility() {
   if (normalizing) {
     closeAppMenu();
   }
+
+  updateRecordingButtons();
 }
 
 function renderCharts() {
@@ -255,12 +349,18 @@ async function toggleRecording(kind) {
 }
 
 async function startRecording(kind) {
+  if (state.processingKind) {
+    setStatus(kind, "Finish the current analysis before starting another recording.");
+    return;
+  }
+
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     setStatus(kind, "Live recording is unavailable in this browser. Upload an audio file instead.");
     return;
   }
 
   try {
+    setStatus(kind, "Requesting microphone access.");
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: false,
@@ -297,7 +397,9 @@ async function startRecording(kind) {
   } catch (error) {
     setStatus(kind, error.name === "NotAllowedError"
       ? "Microphone permission was blocked. Upload an audio file instead."
-      : "Could not start microphone recording.");
+      : error.name === "NotFoundError"
+        ? "No microphone was found. Upload an audio file instead."
+        : "Could not start microphone recording.");
   }
 }
 
@@ -335,6 +437,7 @@ async function handleUpload(event, kind) {
 
 async function processBlob(blob, kind) {
   setStatus(kind, "Analyzing pitch contour.");
+  setProcessing(kind, true);
 
   try {
     const audioBuffer = await decodeBlobToAudioBuffer(blob);
@@ -361,6 +464,8 @@ async function processBlob(blob, kind) {
     }
   } catch (error) {
     setStatus(kind, "Could not decode this audio file. Try a short WAV, MP3, M4A, or WebM recording.");
+  } finally {
+    setProcessing(kind, false);
   }
 }
 
@@ -429,6 +534,7 @@ function renderCalibration() {
   const isSaved = Boolean(state.calibration);
   const passiveReady = isPassiveRangeReady(state.passiveRange);
   const activeProfile = getActiveSpeakerProfile();
+  const busy = Boolean(state.processingKind);
 
   elements.calibrationBadge.textContent = activeProfile
     ? activeProfile.source === "hybrid"
@@ -438,9 +544,9 @@ function renderCalibration() {
         : "Calibrated"
     : "Not calibrated";
   elements.calibrationBadge.classList.toggle("is-ready", Boolean(activeProfile));
-  elements.saveCalibration.disabled = completeKeys.length < 3 || Boolean(state.recording);
-  elements.resetCalibration.disabled = Boolean(state.recording);
-  elements.dismissCalibration.disabled = Boolean(state.recording);
+  elements.saveCalibration.disabled = busy || completeKeys.length < 3 || Boolean(state.recording);
+  elements.resetCalibration.disabled = busy || Boolean(state.recording);
+  elements.dismissCalibration.disabled = busy || Boolean(state.recording);
 
   elements.calibrationLowStatus.textContent = getCalibrationSampleStatus("low");
   elements.calibrationNormalStatus.textContent = getCalibrationSampleStatus("normal");
@@ -452,7 +558,7 @@ function renderCalibration() {
     const isRecording = state.recording?.kind === `calibration-${key}`;
     button.classList.toggle("is-complete", isComplete);
     button.classList.toggle("is-recording", isRecording);
-    button.disabled = Boolean(state.recording && !isRecording);
+    button.disabled = busy || Boolean(state.recording && !isRecording);
     button.querySelector("span").textContent = isRecording ? "Stop" : CALIBRATION_LABELS[key];
   }
 
@@ -580,13 +686,32 @@ function resetCalibration() {
 function updateRecordingButtons() {
   const practiceRecording = state.recording?.kind === "practice";
   const exploreRecording = state.recording?.kind === "explore";
+  const busy = Boolean(state.processingKind);
   elements.recordPractice.classList.toggle("is-recording", practiceRecording);
   elements.recordExplore.classList.toggle("is-recording", exploreRecording);
   elements.recordPractice.textContent = practiceRecording ? "Stop recording" : "Record attempt";
   elements.recordExplore.textContent = exploreRecording ? "Stop recording" : "Record free-form";
-  elements.recordPractice.disabled = Boolean(state.recording && !practiceRecording);
-  elements.recordExplore.disabled = Boolean(state.recording && !exploreRecording);
+  elements.recordPractice.disabled = busy || Boolean(state.recording && !practiceRecording);
+  elements.recordExplore.disabled = busy || Boolean(state.recording && !exploreRecording);
+  elements.playNatural.disabled = busy || Boolean(state.recording);
+  elements.playSlow.disabled = busy || Boolean(state.recording);
+  setFileInputDisabled(elements.practiceUpload, busy || Boolean(state.recording));
+  setFileInputDisabled(elements.exploreUpload, busy || Boolean(state.recording));
+  elements.practiceCanvas.toggleAttribute("aria-busy", state.processingKind === "practice");
+  elements.exploreCanvas.toggleAttribute("aria-busy", state.processingKind === "explore");
   renderCalibration();
+}
+
+function setProcessing(kind, active) {
+  state.processingKind = active ? kind : null;
+  updateRecordingButtons();
+}
+
+function setFileInputDisabled(input, disabled) {
+  input.disabled = disabled;
+  const label = input.closest(".file-button");
+  label?.classList.toggle("is-disabled", disabled);
+  label?.setAttribute("aria-disabled", String(disabled));
 }
 
 function formatStats(stats, normalization = null) {
@@ -668,6 +793,16 @@ function dismissNormalizationFlow() {
   renderVisibility();
 }
 
+function dismissFirstUse() {
+  try {
+    localStorage.setItem(FIRST_USE_STORAGE_KEY, "1");
+  } catch (error) {
+    // The note can still be hidden for this render pass.
+  }
+
+  elements.firstUseNote.classList.add("is-hidden");
+}
+
 function toggleAppMenu() {
   const isOpen = !elements.appMenu.classList.contains("is-hidden");
   elements.appMenu.classList.toggle("is-hidden", isOpen);
@@ -682,6 +817,14 @@ function closeAppMenu() {
 function hasDismissedNormalization() {
   try {
     return localStorage.getItem(NORMALIZATION_DISMISSED_STORAGE_KEY) === "1";
+  } catch (error) {
+    return false;
+  }
+}
+
+function hasDismissedFirstUse() {
+  try {
+    return localStorage.getItem(FIRST_USE_STORAGE_KEY) === "1";
   } catch (error) {
     return false;
   }
@@ -726,10 +869,10 @@ function getRecordingLimitMs(kind) {
 function getRecordingMessage(kind) {
   if (isCalibrationKind(kind)) {
     const key = getCalibrationKey(kind);
-    return `Recording ${CALIBRATION_LABELS[key].toLowerCase()} normalization. ${CALIBRATION_PROMPTS[key]} Tap again to stop.`;
+    return `Recording ${CALIBRATION_LABELS[key].toLowerCase()} normalization. ${CALIBRATION_PROMPTS[key]} Release or tap again to stop.`;
   }
 
-  return "Recording. Tap again to stop.";
+  return "Recording. Release or tap again to stop.";
 }
 
 function loadCalibration() {

@@ -6,7 +6,7 @@ import { drawToneChart } from "./visualizer.js";
 
 const CALIBRATION_STORAGE_KEY = "thai-tone-visualizer-calibration-v1";
 const PASSIVE_RANGE_STORAGE_KEY = "thai-tone-visualizer-passive-range-v1";
-const NORMALIZATION_MODAL_SESSION_KEY = "thai-tone-visualizer-normalization-modal-seen";
+const NORMALIZATION_DISMISSED_STORAGE_KEY = "thai-tone-visualizer-normalization-dismissed-v1";
 const PASSIVE_READY_SECONDS = 30;
 const PASSIVE_READY_FRAMES = 500;
 const PASSIVE_MAX_PITCHES = 4000;
@@ -29,6 +29,7 @@ const state = {
   exploreAttempt: null,
   calibration: null,
   passiveRange: null,
+  normalizationActive: false,
   calibrationSamples: {
     low: null,
     normal: null,
@@ -39,6 +40,9 @@ const state = {
 };
 
 const elements = {
+  topbar: document.querySelector("#topbar"),
+  privacyNote: document.querySelector("#privacyNote"),
+  normalizationMode: document.querySelector("#normalizationMode"),
   modeButtons: [...document.querySelectorAll("[data-mode]")],
   practiceMode: document.querySelector("#practiceMode"),
   exploreMode: document.querySelector("#exploreMode"),
@@ -48,9 +52,9 @@ const elements = {
   selectedTranslation: document.querySelector("#selectedTranslation"),
   toneChip: document.querySelector("#toneChip"),
   contextLine: document.querySelector("#contextLine"),
-  normalizationModal: document.querySelector("#normalizationModal"),
-  startNormalization: document.querySelector("#startNormalization"),
-  skipNormalization: document.querySelector("#skipNormalization"),
+  menuButton: document.querySelector("#menuButton"),
+  appMenu: document.querySelector("#appMenu"),
+  voiceRangeMenuItem: document.querySelector("#voiceRangeMenuItem"),
   calibrationPanel: document.querySelector("#calibrationPanel"),
   playNatural: document.querySelector("#playNatural"),
   playSlow: document.querySelector("#playSlow"),
@@ -62,6 +66,7 @@ const elements = {
   calibrationHighStatus: document.querySelector("#calibrationHighStatus"),
   saveCalibration: document.querySelector("#saveCalibration"),
   resetCalibration: document.querySelector("#resetCalibration"),
+  dismissCalibration: document.querySelector("#dismissCalibration"),
   calibrationSummary: document.querySelector("#calibrationSummary"),
   calibrationBadge: document.querySelector("#calibrationBadge"),
   calibrationStatus: document.querySelector("#calibrationStatus"),
@@ -84,10 +89,10 @@ const elements = {
 function init() {
   state.calibration = loadCalibration();
   state.passiveRange = loadPassiveRange();
+  state.normalizationActive = shouldShowNormalizationOnLoad();
   renderLessonList();
   bindEvents();
   render();
-  showNormalizationPromptIfNeeded();
 }
 
 function bindEvents() {
@@ -99,16 +104,16 @@ function bindEvents() {
   elements.playSlow.addEventListener("click", () => playSelectedTarget("exaggerated"));
   elements.recordPractice.addEventListener("click", () => toggleRecording("practice"));
   elements.recordExplore.addEventListener("click", () => toggleRecording("explore"));
-  elements.startNormalization.addEventListener("click", startNormalizationFlow);
-  elements.skipNormalization.addEventListener("click", closeNormalizationModal);
-  elements.normalizationModal.addEventListener("click", (event) => {
-    if (event.target === elements.normalizationModal) {
-      closeNormalizationModal();
+  elements.menuButton.addEventListener("click", toggleAppMenu);
+  elements.voiceRangeMenuItem.addEventListener("click", openNormalizationFlow);
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !elements.appMenu.classList.contains("is-hidden")) {
+      closeAppMenu();
     }
   });
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !elements.normalizationModal.classList.contains("is-hidden")) {
-      closeNormalizationModal();
+  document.addEventListener("click", (event) => {
+    if (!elements.appMenu.classList.contains("is-hidden") && !event.target.closest(".menu-wrap")) {
+      closeAppMenu();
     }
   });
   for (const button of elements.calibrationButtons) {
@@ -116,6 +121,7 @@ function bindEvents() {
   }
   elements.saveCalibration.addEventListener("click", saveCalibration);
   elements.resetCalibration.addEventListener("click", resetCalibration);
+  elements.dismissCalibration.addEventListener("click", dismissNormalizationFlow);
   elements.practiceUpload.addEventListener("change", (event) => handleUpload(event, "practice"));
   elements.exploreUpload.addEventListener("change", (event) => handleUpload(event, "explore"));
   elements.showPracticeTemplates.addEventListener("change", renderCharts);
@@ -128,8 +134,7 @@ function setMode(mode) {
   elements.modeButtons.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.mode === mode);
   });
-  elements.practiceMode.classList.toggle("is-hidden", mode !== "practice");
-  elements.exploreMode.classList.toggle("is-hidden", mode !== "explore");
+  renderVisibility();
   renderCharts();
 }
 
@@ -171,6 +176,7 @@ function render() {
   renderCharts();
   renderHistory();
   renderCalibration();
+  renderVisibility();
 }
 
 function renderContext(lesson) {
@@ -190,6 +196,19 @@ function renderContext(lesson) {
 
   if (lesson.contextTranslation) {
     elements.contextLine.append(document.createTextNode(` - ${lesson.contextTranslation}`));
+  }
+}
+
+function renderVisibility() {
+  const normalizing = state.normalizationActive;
+  elements.topbar.classList.toggle("is-hidden", normalizing);
+  elements.privacyNote.classList.toggle("is-hidden", normalizing);
+  elements.normalizationMode.classList.toggle("is-hidden", !normalizing);
+  elements.practiceMode.classList.toggle("is-hidden", normalizing || state.mode !== "practice");
+  elements.exploreMode.classList.toggle("is-hidden", normalizing || state.mode !== "explore");
+
+  if (normalizing) {
+    closeAppMenu();
   }
 }
 
@@ -421,6 +440,7 @@ function renderCalibration() {
   elements.calibrationBadge.classList.toggle("is-ready", Boolean(activeProfile));
   elements.saveCalibration.disabled = completeKeys.length < 3 || Boolean(state.recording);
   elements.resetCalibration.disabled = Boolean(state.recording);
+  elements.dismissCalibration.disabled = Boolean(state.recording);
 
   elements.calibrationLowStatus.textContent = getCalibrationSampleStatus("low");
   elements.calibrationNormalStatus.textContent = getCalibrationSampleStatus("normal");
@@ -530,16 +550,20 @@ function saveCalibration() {
   }
 
   state.calibration = result.calibration;
+  state.normalizationActive = false;
+  markNormalizationDismissed();
   const persisted = persistCalibration(state.calibration);
   setCalibrationStatus(persisted
     ? "Saved normalization. New attempts will use your speaker range."
     : "Normalization is active for this session, but could not be saved in this browser.");
   renderCalibration();
+  renderVisibility();
 }
 
 function resetCalibration() {
   state.calibration = null;
   state.passiveRange = createEmptyPassiveRange();
+  state.normalizationActive = true;
   state.calibrationSamples = {
     low: null,
     normal: null,
@@ -547,8 +571,10 @@ function resetCalibration() {
   };
   clearPersistedCalibration();
   clearPersistedPassiveRange();
+  clearNormalizationDismissed();
   setCalibrationStatus("Normalization reset. Practice will use current-recording fallback.");
   renderCalibration();
+  renderVisibility();
 }
 
 function updateRecordingButtons() {
@@ -620,46 +646,60 @@ function setCalibrationStatus(message) {
   elements.calibrationStatus.textContent = message;
 }
 
-function showNormalizationPromptIfNeeded() {
-  if (state.calibration || hasSeenNormalizationModal()) {
-    return;
-  }
-
-  elements.normalizationModal.classList.remove("is-hidden");
-  elements.startNormalization.focus();
+function shouldShowNormalizationOnLoad() {
+  return !state.calibration && !hasDismissedNormalization();
 }
 
-function startNormalizationFlow() {
-  markNormalizationModalSeen();
-  elements.normalizationModal.classList.add("is-hidden");
-  setMode("practice");
+function openNormalizationFlow() {
+  closeAppMenu();
+  state.normalizationActive = true;
   setCalibrationStatus(`Start with Low: ${CALIBRATION_PROMPTS.low}`);
-  elements.calibrationPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  renderCalibration();
+  renderVisibility();
   window.setTimeout(() => {
     const lowButton = elements.calibrationButtons.find((button) => button.dataset.calibration === "low");
     lowButton?.focus();
   }, 250);
 }
 
-function closeNormalizationModal() {
-  markNormalizationModalSeen();
-  elements.normalizationModal.classList.add("is-hidden");
-  setCalibrationStatus(`For best register feedback, record Low, Normal, and High samples first. Low: ${CALIBRATION_PROMPTS.low}`);
+function dismissNormalizationFlow() {
+  markNormalizationDismissed();
+  state.normalizationActive = false;
+  renderVisibility();
 }
 
-function hasSeenNormalizationModal() {
+function toggleAppMenu() {
+  const isOpen = !elements.appMenu.classList.contains("is-hidden");
+  elements.appMenu.classList.toggle("is-hidden", isOpen);
+  elements.menuButton.setAttribute("aria-expanded", String(!isOpen));
+}
+
+function closeAppMenu() {
+  elements.appMenu.classList.add("is-hidden");
+  elements.menuButton.setAttribute("aria-expanded", "false");
+}
+
+function hasDismissedNormalization() {
   try {
-    return sessionStorage.getItem(NORMALIZATION_MODAL_SESSION_KEY) === "1";
+    return localStorage.getItem(NORMALIZATION_DISMISSED_STORAGE_KEY) === "1";
   } catch (error) {
     return false;
   }
 }
 
-function markNormalizationModalSeen() {
+function markNormalizationDismissed() {
   try {
-    sessionStorage.setItem(NORMALIZATION_MODAL_SESSION_KEY, "1");
+    localStorage.setItem(NORMALIZATION_DISMISSED_STORAGE_KEY, "1");
   } catch (error) {
-    // The modal can still be dismissed for the current page without storage.
+    // The current session can still proceed without persistence.
+  }
+}
+
+function clearNormalizationDismissed() {
+  try {
+    localStorage.removeItem(NORMALIZATION_DISMISSED_STORAGE_KEY);
+  } catch (error) {
+    // Session state has already been reset.
   }
 }
 

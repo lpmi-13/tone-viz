@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Thai Tone Visualizer</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local pitch practice</p>
+          <h1>Thai Tone Visualizer</h1>
+        </div>
+        <nav class="mode-toggle" aria-label="Mode">
+          <button class="mode-button is-active" type="button" data-mode="practice">Practice</button>
+          <button class="mode-button" type="button" data-mode="explore">Explore</button>
+        </nav>
+      </header>
+
+      <section class="privacy-note" aria-live="polite">
+        Microphone audio is analyzed in this browser session. Nothing is uploaded by this app.
+      </section>
+
+      <div id="normalizationModal" class="modal-backdrop is-hidden" role="dialog" aria-modal="true" aria-labelledby="normalizationModalTitle" aria-describedby="normalizationModalBody">
+        <section class="normalization-modal">
+          <p class="eyebrow">Before practice</p>
+          <h2 id="normalizationModalTitle">Set your speaker range</h2>
+          <div id="normalizationModalBody" class="modal-body">
+            <p>For Thai tones, the app needs your low, normal, and high pitch range. Do not record a sentence for normalization; a sentence has tone movement and silent parts.</p>
+            <ol class="instruction-list">
+              <li>Tap <strong>Low</strong> and hold <strong>อา</strong> on a comfortable low pitch for 2 to 3 seconds.</li>
+              <li>Tap <strong>Normal</strong> and hold <strong>อา</strong> at your normal speaking pitch for 2 to 3 seconds.</li>
+              <li>Tap <strong>High</strong> and hold <strong>อา</strong> on a comfortable high pitch for 2 to 3 seconds.</li>
+            </ol>
+            <p>Use a quiet room, keep the phone close, and do not strain or sing. Save normalization after all three samples are accepted.</p>
+          </div>
+          <div class="modal-actions">
+            <button id="startNormalization" class="button primary" type="button">Start normalization</button>
+            <button id="skipNormalization" class="button" type="button">Skip for now</button>
+          </div>
+        </section>
+      </div>
+
+      <section id="practiceMode" class="mode-panel">
+        <div class="lesson-rail" id="lessonList" aria-label="Thai tone examples"></div>
+
+        <section class="lesson-focus" aria-labelledby="selectedWord">
+          <div class="word-row">
+            <div>
+              <p class="tone-kicker" id="selectedTone">Mid</p>
+              <h2 id="selectedWord">มา</h2>
+              <p id="selectedTranslation" class="translation">come</p>
+            </div>
+            <div class="tone-chip" id="toneChip">mid</div>
+          </div>
+
+          <p class="context-line" id="contextLine"></p>
+
+          <section id="calibrationPanel" class="calibration-panel" aria-labelledby="calibrationTitle">
+            <div class="calibration-head">
+              <div>
+                <h3 id="calibrationTitle">Manual Normalization</h3>
+                <p id="calibrationSummary">Record three separate steady <strong>อา</strong> samples: comfortable low, normal speaking pitch, and comfortable high. Do not use a sentence.</p>
+              </div>
+              <span id="calibrationBadge" class="calibration-badge">Not calibrated</span>
+            </div>
+
+            <ol class="calibration-steps">
+              <li><strong>Low:</strong> hold <strong>อา</strong> on a comfortable low pitch for 2 to 3 seconds.</li>
+              <li><strong>Normal:</strong> hold <strong>อา</strong> at normal speaking pitch for 2 to 3 seconds.</li>
+              <li><strong>High:</strong> hold <strong>อา</strong> on a comfortable high pitch for 2 to 3 seconds.</li>
+            </ol>
+
+            <div class="calibration-grid" aria-label="Normalization samples">
+              <button class="button calibration-button" type="button" data-calibration="low">
+                <span>Low</span>
+                <small id="calibrationLowStatus">Needed</small>
+              </button>
+              <button class="button calibration-button" type="button" data-calibration="normal">
+                <span>Normal</span>
+                <small id="calibrationNormalStatus">Needed</small>
+              </button>
+              <button class="button calibration-button" type="button" data-calibration="high">
+                <span>High</span>
+                <small id="calibrationHighStatus">Needed</small>
+              </button>
+            </div>
+
+            <div class="control-row compact">
+              <button id="saveCalibration" class="button primary" type="button">Save normalization</button>
+              <button id="resetCalibration" class="button" type="button">Reset</button>
+              <span id="calibrationStatus" class="status-text">Start with Low: hold อา on a comfortable low pitch for 2 to 3 seconds.</span>
+            </div>
+
+            <div class="passive-range">
+              <div class="passive-range-head">
+                <strong>Passive refinement</strong>
+                <span id="passiveRangePercent">0%</span>
+              </div>
+              <div class="progress-track" aria-hidden="true">
+                <span id="passiveRangeBar"></span>
+              </div>
+              <p id="passiveRangeStatus">As you practice, the app will collect voiced pitch frames and refine your range after about 30 seconds of speech.</p>
+            </div>
+          </section>
+
+          <div class="control-row">
+            <button id="playNatural" class="button primary" type="button">Play target</button>
+            <button id="playSlow" class="button" type="button">Play slow</button>
+            <button id="recordPractice" class="button record" type="button">Record attempt</button>
+            <label class="file-button">
+              Upload audio
+              <input id="practiceUpload" type="file" accept="audio/*">
+            </label>
+          </div>
+
+          <div class="chart-tools">
+            <label class="toggle">
+              <input id="showPracticeTemplates" type="checkbox">
+              <span>Show tone templates</span>
+            </label>
+            <span id="practiceStatus" class="status-text">Select a word, play the target, then record one attempt.</span>
+          </div>
+
+          <canvas id="practiceCanvas" class="tone-canvas" width="960" height="480" aria-label="Target and learner pitch contours"></canvas>
+
+          <output id="feedback" class="feedback">Record or upload a short syllable to compare your contour with the target.</output>
+
+          <section class="attempt-history" aria-labelledby="historyTitle">
+            <h3 id="historyTitle">Recent Attempts</h3>
+            <ul id="historyList"></ul>
+          </section>
+        </section>
+      </section>
+
+      <section id="exploreMode" class="mode-panel is-hidden" aria-labelledby="exploreTitle">
+        <section class="explore-panel">
+          <div class="section-heading">
+            <div>
+              <p class="tone-kicker">Free-form</p>
+              <h2 id="exploreTitle">Explore any short recording</h2>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <button id="recordExplore" class="button record" type="button">Record free-form</button>
+            <label class="file-button">
+              Upload audio
+              <input id="exploreUpload" type="file" accept="audio/*">
+            </label>
+          </div>
+
+          <div class="chart-tools">
+            <label class="toggle">
+              <input id="showExploreTemplates" type="checkbox" checked>
+              <span>Show tone templates</span>
+            </label>
+            <span id="exploreStatus" class="status-text">Record or upload one word or syllable.</span>
+          </div>
+
+          <canvas id="exploreCanvas" class="tone-canvas" width="960" height="480" aria-label="Free-form pitch contour"></canvas>
+          <output id="exploreFeedback" class="feedback">Free-form mode visualizes pitch without grading it.</output>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

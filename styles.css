@@ -1,0 +1,608 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f9fb;
+  --surface: #ffffff;
+  --surface-strong: #f1f5f9;
+  --text: #172033;
+  --muted: #64748b;
+  --border: #d7dee8;
+  --target: #102a43;
+  --learner: #b423b6;
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  --warn: #b45309;
+  --danger: #b91c1c;
+  --low-band: #e5f0ff;
+  --mid-band: #edf8ed;
+  --high-band: #fff2cf;
+  --shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.eyebrow,
+.tone-kicker {
+  margin: 0 0 4px;
+  color: var(--accent-dark);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: clamp(1.7rem, 4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+h2 {
+  margin-bottom: 4px;
+  font-size: clamp(1.4rem, 5vw, 2.4rem);
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+h3 {
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+}
+
+.mode-toggle {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  min-width: 202px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.mode-button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mode-button.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.12);
+}
+
+.privacy-note {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.modal-backdrop.is-hidden {
+  display: none;
+}
+
+.normalization-modal {
+  width: min(640px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.24);
+}
+
+.normalization-modal h2 {
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+}
+
+.modal-body p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.instruction-list,
+.calibration-steps {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  padding-left: 1.25rem;
+  color: var(--text);
+}
+
+.instruction-list li,
+.calibration-steps li {
+  line-height: 1.42;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.mode-panel {
+  display: grid;
+  gap: 16px;
+}
+
+#practiceMode {
+  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.is-hidden {
+  display: none;
+}
+
+.lesson-rail {
+  display: grid;
+  gap: 10px;
+}
+
+.lesson-card {
+  width: 100%;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.lesson-card.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.lesson-card .thai {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.lesson-card .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.lesson-focus,
+.explore-panel {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.word-row,
+.section-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.word-row h2 {
+  font-size: clamp(3rem, 13vw, 6.5rem);
+}
+
+.translation {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.tone-chip {
+  flex: 0 0 auto;
+  min-width: 74px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--accent-dark);
+  font-weight: 900;
+  text-align: center;
+}
+
+.context-line {
+  min-height: 32px;
+  margin: 12px 0 14px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.context-line mark {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #fef08a;
+  color: #111827;
+}
+
+.calibration-panel {
+  margin: 12px 0 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+}
+
+.calibration-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+
+.calibration-head h3 {
+  margin-bottom: 4px;
+}
+
+.calibration-head p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.calibration-badge {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.calibration-badge.is-ready {
+  border-color: #14b8a6;
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.calibration-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.calibration-button {
+  min-height: 58px;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+}
+
+.calibration-button small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.calibration-button.is-complete {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.calibration-button.is-recording {
+  border-color: var(--danger);
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+.passive-range {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.passive-range-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.progress-track {
+  height: 10px;
+  margin: 8px 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dbe4ee;
+}
+
+.progress-track span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+.passive-range p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.38;
+}
+
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0;
+}
+
+.control-row.compact {
+  margin-bottom: 0;
+}
+
+.button,
+.file-button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+
+.button.primary:hover,
+.button.primary:focus-visible {
+  background: var(--accent-dark);
+}
+
+.button.record {
+  border-color: #c026d3;
+  color: #86198f;
+}
+
+.button.record.is-recording {
+  border-color: var(--danger);
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+.file-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.chart-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.status-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.tone-canvas {
+  display: block;
+  width: 100%;
+  height: clamp(280px, 46vw, 430px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.feedback {
+  display: block;
+  min-height: 48px;
+  margin-top: 12px;
+  padding: 12px;
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: #f0fdfa;
+  color: #134e4a;
+  font-weight: 750;
+}
+
+.attempt-history {
+  margin-top: 16px;
+}
+
+.attempt-history ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attempt-history li {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mode-toggle {
+    width: 100%;
+  }
+
+  #practiceMode {
+    grid-template-columns: 1fr;
+  }
+
+  .lesson-rail {
+    grid-template-columns: repeat(5, minmax(110px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .lesson-card {
+    scroll-snap-align: start;
+  }
+
+  .lesson-focus,
+  .explore-panel {
+    padding: 12px;
+  }
+
+  .word-row {
+    align-items: center;
+  }
+
+  .calibration-head {
+    flex-direction: column;
+  }
+
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .control-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .button,
+  .file-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 460px) {
+  .control-row {
+    grid-template-columns: 1fr;
+  }
+
+  .calibration-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .word-row,
+  .section-heading {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tone-chip {
+    text-align: left;
+  }
+}

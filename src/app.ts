@@ -11,7 +11,7 @@ import {
   toneGroups,
   toneTemplates
 } from "./data.js";
-import { playLessonTarget, decodeBlobToAudioBuffer } from "./audio.js";
+import { playAudioSource, playLessonTarget, decodeBlobToAudioBuffer, stopActivePlayback } from "./audio.js";
 import { analyzeAudioBuffer, buildCalibration } from "./pitch.js";
 import { compareContours } from "./compare.js";
 import { drawToneChart } from "./visualizer.js";
@@ -21,6 +21,7 @@ import type {
   CalibrationKey,
   Lesson,
   PassiveRange,
+  PlaybackProgress,
   PitchNormalization,
   PitchStats,
   PlaybackVariant,
@@ -71,6 +72,7 @@ const state: any = {
   },
   recording: null,
   processingKind: null,
+  playback: null,
   holdGesture: null,
   suppressRecordClick: false,
   quizLessonId: quizLessons[0].id,
@@ -81,6 +83,8 @@ const state: any = {
   },
   history: []
 };
+
+let playbackToken = 0;
 
 const elements: any = {
   topbar: document.querySelector("#topbar"),
@@ -112,7 +116,9 @@ const elements: any = {
   playPhrase: document.querySelector("#playPhrase"),
   playPhraseSlow: document.querySelector("#playPhraseSlow"),
   recordPractice: document.querySelector("#recordPractice"),
+  playPracticeAttempt: document.querySelector("#playPracticeAttempt"),
   recordExplore: document.querySelector("#recordExplore"),
+  playExploreAttempt: document.querySelector("#playExploreAttempt"),
   playQuizClip: document.querySelector("#playQuizClip"),
   nextQuizItem: document.querySelector("#nextQuizItem"),
   quizPrompt: document.querySelector("#quizPrompt"),
@@ -162,7 +168,10 @@ function bindEvents() {
   elements.playSlow.addEventListener("click", () => playSelectedTarget("exaggerated"));
   elements.playPhrase.addEventListener("click", () => playSelectedTarget("phrase"));
   elements.playPhraseSlow.addEventListener("click", () => playSelectedTarget("phraseSlow"));
+  elements.playPracticeAttempt.addEventListener("click", playPracticeAttempt);
+  elements.playExploreAttempt.addEventListener("click", playExploreAttempt);
   elements.targetSpeaker.addEventListener("change", () => {
+    cancelContourPlayback();
     state.selectedSpeakerId = elements.targetSpeaker.value;
     renderLessonList();
     render();
@@ -294,6 +303,7 @@ function clearHoldTimer() {
 }
 
 function setMode(mode: "practice" | "quiz" | "explore") {
+  cancelContourPlayback();
   state.mode = mode;
   elements.modeButtons.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.mode === mode);
@@ -417,6 +427,7 @@ function renderWordVariants() {
 }
 
 function selectTone(toneId: string) {
+  cancelContourPlayback();
   const group = getToneGroupById(toneId);
   const word = group.words[0];
   state.selectedToneId = group.id;
@@ -427,6 +438,7 @@ function selectTone(toneId: string) {
 }
 
 function selectWord(wordId: string) {
+  cancelContourPlayback();
   const word = getWordById(state.selectedToneId, wordId);
   state.selectedWordId = word.id;
   state.selectedPhraseVariantId = word.phraseVariants[0]?.id || null;
@@ -435,6 +447,7 @@ function selectWord(wordId: string) {
 }
 
 function cycleSelectedPhrase(direction: number) {
+  cancelContourPlayback();
   const word = getWordById(state.selectedToneId, state.selectedWordId);
   if (word.phraseVariants.length < 2) {
     return;
@@ -448,6 +461,7 @@ function cycleSelectedPhrase(direction: number) {
 }
 
 function resetPracticeAttempt() {
+  revokeAttemptAudio(state.practiceAttempt);
   state.practiceAttempt = null;
   state.practiceComparison = null;
   elements.feedback.value = "Record a short syllable to compare your contour with the target.";
@@ -474,7 +488,7 @@ function renderCycleControls() {
 
 function updateCycleButtons() {
   const word = getWordById(state.selectedToneId, state.selectedWordId);
-  const busy = Boolean(state.processingKind || state.recording);
+  const busy = Boolean(state.processingKind || state.recording || state.playback);
   const phraseDisabled = busy || word.phraseVariants.length < 2;
 
   elements.previousPhrase.disabled = phraseDisabled;
@@ -578,15 +592,99 @@ function renderCharts() {
     showTemplates: elements.showPracticeTemplates.checked,
     segments: state.practiceComparison?.segments || [],
     cues: state.practiceComparison?.cues || [],
-    emptyText: "Target contour"
+    emptyText: "Target contour",
+    playback: getChartPlayback("practice")
   });
 
   drawToneChart(elements.exploreCanvas, {
     learner: state.exploreAttempt?.points || null,
     showTemplates: elements.showExploreTemplates.checked,
     freeform: true,
-    emptyText: "Record audio"
+    emptyText: "Record audio",
+    playback: getChartPlayback("explore")
   });
+}
+
+function getChartPlayback(chart: "practice" | "explore") {
+  if (state.playback?.chart !== chart) {
+    return null;
+  }
+
+  return {
+    track: state.playback.track,
+    progress: state.playback.progress,
+    label: state.playback.label
+  };
+}
+
+function beginContourPlayback(config: {
+  chart: "practice" | "explore";
+  track: "target" | "learner";
+  label: string;
+  source: string;
+}): number {
+  cancelContourPlayback();
+  playbackToken += 1;
+  state.playback = {
+    ...config,
+    token: playbackToken,
+    progress: 0
+  };
+  renderCharts();
+  updateRecordingButtons();
+  return playbackToken;
+}
+
+function updateContourPlayback(token: number, progress: number) {
+  if (state.playback?.token !== token) {
+    return;
+  }
+
+  state.playback.progress = clamp(progress, 0, 1);
+  renderCharts();
+}
+
+function endContourPlayback(token: number) {
+  if (state.playback?.token !== token) {
+    return;
+  }
+
+  state.playback = null;
+  renderCharts();
+  updateRecordingButtons();
+}
+
+function cancelContourPlayback() {
+  if (!state.playback) {
+    return;
+  }
+
+  playbackToken += 1;
+  state.playback = null;
+  stopActivePlayback();
+  renderCharts();
+  updateRecordingButtons();
+}
+
+function mapLessonPlaybackProgress(progress: PlaybackProgress, lesson: Lesson, variant: PlaybackVariant): number {
+  if (progress.done) {
+    return 1;
+  }
+
+  const timing = lesson.targetWordTiming;
+  const canUseTargetTiming = (
+    (variant === "phrase" || variant === "phraseSlow") &&
+    timing &&
+    progress.duration > 0 &&
+    timing.end > timing.start &&
+    timing.end <= progress.duration + 0.2
+  );
+
+  if (canUseTargetTiming) {
+    return clamp((progress.currentTime - timing.start) / (timing.end - timing.start), 0, 1);
+  }
+
+  return progress.progress;
 }
 
 async function playSelectedTarget(variant: PlaybackVariant) {
@@ -598,13 +696,79 @@ async function playSelectedTarget(variant: PlaybackVariant) {
     phrase: `Playing phrase with ${speaker.label}.`,
     phraseSlow: `Playing slow phrase with ${speaker.label}.`
   };
+  const token = beginContourPlayback({
+    chart: "practice",
+    track: "target",
+    label: "target",
+    source: `target-${variant}`
+  });
   setPracticeStatus(messages[variant] || "Playing target audio.");
 
   try {
-    await playLessonTarget(lesson, variant, speaker);
+    await playLessonTarget(lesson, variant, speaker, {
+      onProgress: (progress) => {
+        updateContourPlayback(token, mapLessonPlaybackProgress(progress, lesson, variant));
+      }
+    });
     setPracticeStatus("Ready for an attempt.");
   } catch (error) {
     setPracticeStatus(error.message || "Target playback failed.");
+  } finally {
+    endContourPlayback(token);
+  }
+}
+
+async function playPracticeAttempt() {
+  const attempt = state.practiceAttempt;
+  if (!attempt?.audioUrl) {
+    setPracticeStatus("Record an attempt before replaying it.");
+    return;
+  }
+
+  const token = beginContourPlayback({
+    chart: "practice",
+    track: "learner",
+    label: "you",
+    source: "practice-attempt"
+  });
+  setPracticeStatus("Playing your recorded attempt.");
+
+  try {
+    await playAudioSource(attempt.audioUrl, {
+      onProgress: (progress) => updateContourPlayback(token, progress.progress)
+    });
+    setPracticeStatus("Recorded attempt playback finished.");
+  } catch (error) {
+    setPracticeStatus(error.message || "Recorded attempt playback failed.");
+  } finally {
+    endContourPlayback(token);
+  }
+}
+
+async function playExploreAttempt() {
+  const attempt = state.exploreAttempt;
+  if (!attempt?.audioUrl) {
+    setExploreStatus("Record audio before replaying it.");
+    return;
+  }
+
+  const token = beginContourPlayback({
+    chart: "explore",
+    track: "learner",
+    label: "recording",
+    source: "explore-attempt"
+  });
+  setExploreStatus("Playing your free-form recording.");
+
+  try {
+    await playAudioSource(attempt.audioUrl, {
+      onProgress: (progress) => updateContourPlayback(token, progress.progress)
+    });
+    setExploreStatus("Recording playback finished.");
+  } catch (error) {
+    setExploreStatus(error.message || "Recording playback failed.");
+  } finally {
+    endContourPlayback(token);
   }
 }
 
@@ -662,6 +826,8 @@ async function toggleRecording(kind: RecordingKind) {
 }
 
 async function startRecording(kind: RecordingKind) {
+  cancelContourPlayback();
+
   if (state.processingKind) {
     setStatus(kind, "Finish the current analysis before starting another recording.");
     return;
@@ -760,15 +926,31 @@ async function processBlob(blob: Blob, kind: RecordingKind) {
     if (isCalibrationKind(kind)) {
       handleCalibrationAnalysis(getCalibrationKey(kind), analysis);
     } else if (kind === "practice") {
-      handlePracticeAnalysis(analysis);
+      handlePracticeAnalysis(attachRecordedAudio(analysis, blob, audioBuffer.duration));
     } else {
-      handleExploreAnalysis(analysis);
+      handleExploreAnalysis(attachRecordedAudio(analysis, blob, audioBuffer.duration));
     }
   } catch (error) {
     setStatus(kind, "Could not decode this audio file. Try a short WAV, MP3, M4A, or WebM recording.");
   } finally {
     setProcessing(kind, false);
   }
+}
+
+function attachRecordedAudio(analysis: AudioAnalysis, blob: Blob, durationSec: number): AudioAnalysis {
+  return {
+    ...analysis,
+    audioUrl: URL.createObjectURL(blob),
+    durationSec
+  } as AudioAnalysis;
+}
+
+function revokeAttemptAudio(attempt: any) {
+  if (!attempt?.audioUrl) {
+    return;
+  }
+
+  URL.revokeObjectURL(attempt.audioUrl);
 }
 
 function handlePracticeAnalysis(analysis: AudioAnalysis) {
@@ -778,6 +960,7 @@ function handlePracticeAnalysis(analysis: AudioAnalysis) {
     ? ""
     : " Using only this recording, so register feedback is rough until calibration is saved or passive calibration is ready.";
   const rangeWarning = getRangeWarning(analysis.normalization);
+  revokeAttemptAudio(state.practiceAttempt);
   state.practiceAttempt = analysis;
   state.practiceComparison = comparison;
   updatePassiveRange(analysis);
@@ -794,11 +977,13 @@ function handlePracticeAnalysis(analysis: AudioAnalysis) {
 }
 
 function handleExploreAnalysis(analysis: AudioAnalysis) {
+  revokeAttemptAudio(state.exploreAttempt);
   state.exploreAttempt = analysis;
   updatePassiveRange(analysis);
   elements.exploreFeedback.value = `${formatStats(analysis.stats, analysis.normalization)}${getRangeWarning(analysis.normalization)} Free-form mode does not grade tone correctness.`;
   setExploreStatus("Contour rendered.");
   renderCharts();
+  updateRecordingButtons();
 }
 
 function handleCalibrationAnalysis(key: CalibrationKey, analysis: AudioAnalysis) {
@@ -990,19 +1175,24 @@ function updateRecordingButtons() {
   const practiceRecording = state.recording?.kind === "practice";
   const exploreRecording = state.recording?.kind === "explore";
   const busy = Boolean(state.processingKind);
+  const playing = Boolean(state.playback);
   elements.recordPractice.classList.toggle("is-recording", practiceRecording);
   elements.recordExplore.classList.toggle("is-recording", exploreRecording);
   elements.recordPractice.textContent = practiceRecording ? "Stop recording" : "Record attempt";
   elements.recordExplore.textContent = exploreRecording ? "Stop recording" : "Record free-form";
-  elements.recordPractice.disabled = busy || Boolean(state.recording && !practiceRecording);
-  elements.recordExplore.disabled = busy || Boolean(state.recording && !exploreRecording);
-  elements.playNatural.disabled = busy || Boolean(state.recording);
-  elements.playSlow.disabled = busy || Boolean(state.recording);
-  elements.playPhrase.disabled = busy || Boolean(state.recording);
-  elements.playPhraseSlow.disabled = busy || Boolean(state.recording);
-  elements.targetSpeaker.disabled = busy || Boolean(state.recording);
-  elements.playQuizClip.disabled = busy || Boolean(state.recording);
-  elements.nextQuizItem.disabled = busy || Boolean(state.recording);
+  elements.playPracticeAttempt.textContent = state.playback?.source === "practice-attempt" ? "Playing attempt" : "Play attempt";
+  elements.playExploreAttempt.textContent = state.playback?.source === "explore-attempt" ? "Playing recording" : "Play recording";
+  elements.recordPractice.disabled = busy || playing || Boolean(state.recording && !practiceRecording);
+  elements.recordExplore.disabled = busy || playing || Boolean(state.recording && !exploreRecording);
+  elements.playNatural.disabled = busy || playing || Boolean(state.recording);
+  elements.playSlow.disabled = busy || playing || Boolean(state.recording);
+  elements.playPhrase.disabled = busy || playing || Boolean(state.recording);
+  elements.playPhraseSlow.disabled = busy || playing || Boolean(state.recording);
+  elements.playPracticeAttempt.disabled = busy || playing || Boolean(state.recording) || !state.practiceAttempt?.audioUrl;
+  elements.playExploreAttempt.disabled = busy || playing || Boolean(state.recording) || !state.exploreAttempt?.audioUrl;
+  elements.targetSpeaker.disabled = busy || playing || Boolean(state.recording);
+  elements.playQuizClip.disabled = busy || playing || Boolean(state.recording);
+  elements.nextQuizItem.disabled = busy || playing || Boolean(state.recording);
   updateCycleButtons();
   elements.practiceCanvas.toggleAttribute("aria-busy", state.processingKind === "practice");
   elements.exploreCanvas.toggleAttribute("aria-busy", state.processingKind === "explore");
@@ -1076,6 +1266,7 @@ function shouldShowCalibrationOnLoad() {
 }
 
 function openCalibrationFlow() {
+  cancelContourPlayback();
   closeAppMenu();
   state.calibrationActive = true;
   setCalibrationStatus(`Start with Low: ${CALIBRATION_PROMPTS.low}`);
@@ -1422,6 +1613,10 @@ function hzToSemitone(hz: number): number {
 
 function semitoneToHz(semitone: number): number {
   return 440 * 2 ** (semitone / 12);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function firstFinite(...values: Array<number | null | undefined>): number | undefined {

@@ -717,6 +717,18 @@ h3 {
   color: var(--danger);
 }
 
+.button.replay {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  color: #115e59;
+}
+
+.button.replay:not(:disabled):hover,
+.button.replay:not(:disabled):focus-visible {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
 .chart-tools {
   display: flex;
   flex-wrap: wrap;
@@ -780,9 +792,20 @@ h3 {
   display: block;
   width: 100%;
   height: clamp(280px, 46vw, 430px);
-  border: 1px solid var(--border);
+  border: 1px solid #c5d1dc;
   border-radius: 8px;
-  background: #ffffff;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.tone-canvas[aria-busy] {
+  border-color: #d946ef;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 3px rgba(192, 38, 211, 0.12),
+    0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 .feedback {

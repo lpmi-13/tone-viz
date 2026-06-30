@@ -232,6 +232,23 @@ export interface ContourComparison {
   diagnostic: TemplateDiagnostic | null;
 }
 
+export interface PlaybackProgress {
+  progress: number;
+  currentTime: number;
+  duration: number;
+  done: boolean;
+}
+
+export interface PlaybackOptions {
+  onProgress?: (progress: PlaybackProgress) => void;
+}
+
+export interface ChartPlayback {
+  track: "target" | "learner";
+  progress: number;
+  label?: string;
+}
+
 export interface DrawToneChartOptions {
   target?: TonePoint[] | null;
   learner?: TonePoint[] | null;
@@ -241,4 +258,5 @@ export interface DrawToneChartOptions {
   cues?: ComparisonCue[];
   freeform?: boolean;
   emptyText?: string;
+  playback?: ChartPlayback | null;
 }

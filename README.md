@@ -2,7 +2,23 @@
 
 A local-first browser MVP for Thai tone practice and pitch-contour exploration.
 
-## Run
+## Local Development
+
+Start a local dev server with TypeScript watch mode:
+
+```bash
+npm run dev
+```
+
+Then open `http://127.0.0.1:5173`. The dev server serves `src/index.html`, `src/styles.css`, generated JavaScript from `.build/assets/`, and static files from `public/` and `audio/`. Refresh the browser after changes.
+
+Use a different port if needed:
+
+```bash
+PORT=5057 npm run dev
+```
+
+## Build
 
 Build the TypeScript app, then serve the generated `dist/` folder over HTTP so browser module loading and microphone permissions work:
 
@@ -36,13 +52,13 @@ python3 scripts/generate_edge_tts.py
 - Practice items include isolated target-word audio plus longer phrase-context clips with the target word highlighted in Thai script.
 - Learners can cycle target words within a tone and cycle phrase variants for the selected word.
 - Quiz mode plays phrase clips from the expanded variant set and asks the learner to select the tone of the highlighted monosyllabic word.
-- Learner audio is recorded by tap-to-toggle or press-and-hold, or uploaded, decoded locally, analyzed with a YIN-style pitch detector, normalized, and drawn on canvas.
+- Learner audio is recorded by tap-to-toggle or press-and-hold, decoded locally, analyzed with a YIN-style pitch detector, normalized, and drawn on canvas.
 - Practice feedback compares against the selected target and also runs an internal five-template diagnostic to choose clearer contour/register guidance without showing a score.
-- Manual normalization prompts the learner to record three separate sustained อา samples: comfortable low, normal speaking pitch, and comfortable high. A sentence is not recommended for normalization because it includes tone movement and unvoiced segments.
+- Calibration prompts the learner to record three separate sustained `ah` samples: comfortable low, normal speaking pitch, and comfortable high. A sentence is not recommended for calibration because it includes tone movement and unvoiced segments.
 - Saved calibration is stored in local browser storage and used for later practice/explore attempts as a floor/mid/ceiling speaker profile.
-- When needed, normalization is shown as its own full-page flow and hides the rest of the app until saved or dismissed.
-- After completion or dismissal, normalization is absent from the practice UI and can be reopened from the hamburger menu.
-- Passive refinement also collects voiced pitch frames from practice/explore attempts. After about 30 seconds of voiced practice it can provide a passive range or expand a saved manual range if practice shows the original floor/ceiling was too narrow.
+- When needed, calibration is shown as its own full-page flow and hides the rest of the app until saved or dismissed.
+- After completion or dismissal, calibration is absent from the practice UI and can be reopened from the hamburger menu.
+- Passive refinement also collects voiced pitch frames from practice/explore attempts. After about 30 seconds of voiced practice it can provide passive calibration or refine a saved manual calibration if practice shows the original floor/ceiling was too narrow.
 - Calibrated attempts can warn when pitch goes above or below the active comfortable range.
 - The UI includes a dismissible first-use prompt, busy states during decode/analysis, and mobile-friendly record controls.
 - Target and phrase playback use the generated speaker audio files for the expanded word and phrase variants.

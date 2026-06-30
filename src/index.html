@@ -29,7 +29,6 @@
     <main class="app-shell">
       <header id="topbar" class="topbar">
         <div>
-          <p class="eyebrow">Local pitch practice</p>
           <h1>Thai Tone Visualizer</h1>
         </div>
         <div class="top-actions">
@@ -40,7 +39,7 @@
               <span></span>
             </button>
             <div id="appMenu" class="app-menu is-hidden" role="menu">
-              <button id="voiceRangeMenuItem" type="button" role="menuitem">Voice range</button>
+              <button id="calibrateMenuItem" type="button" role="menuitem">Calibrate</button>
             </div>
           </div>
           <label class="select-field speaker-select">
@@ -64,22 +63,22 @@
       <section id="firstUseNote" class="first-use-note" aria-labelledby="firstUseTitle">
         <div>
           <h2 id="firstUseTitle">Quick start</h2>
-          <p>Set your voice range when prompted. Practice with isolated words and phrase clips, or use Quiz to identify a highlighted word's tone.</p>
+          <p>Calibrate when prompted. Practice with isolated words and phrase clips, or use Quiz to identify a highlighted word's tone.</p>
         </div>
         <button id="dismissFirstUse" class="button" type="button">Dismiss</button>
       </section>
 
-      <section id="normalizationMode" class="normalization-page is-hidden" aria-labelledby="calibrationTitle">
-        <section id="calibrationPanel" class="calibration-panel normalization-card">
+      <section id="calibrationMode" class="calibration-page is-hidden" aria-labelledby="calibrationTitle">
+        <section id="calibrationPanel" class="calibration-panel calibration-card">
           <div class="calibration-head">
             <div>
-              <p class="eyebrow">Voice range</p>
-              <h2 id="calibrationTitle">Manual Normalization</h2>
-              <p id="calibrationSummary">Record three separate steady <strong>อา</strong> samples: comfortable low, normal speaking pitch, and comfortable high. Do not use a sentence.</p>
+              <p class="eyebrow">Calibrate</p>
+              <h2 id="calibrationTitle">Calibration</h2>
+              <p id="calibrationSummary">Record three separate steady <strong>ah</strong> samples: comfortable low, normal speaking pitch, and comfortable high. Do not use a sentence.</p>
             </div>
             <div class="calibration-actions">
               <span id="calibrationBadge" class="calibration-badge">Not calibrated</span>
-              <button id="dismissCalibration" class="icon-button close-normalization" type="button" aria-label="Close voice range">
+              <button id="dismissCalibration" class="icon-button close-calibration" type="button" aria-label="Close calibration">
                 <span></span>
                 <span></span>
               </button>
@@ -87,12 +86,12 @@
           </div>
 
           <ol class="calibration-steps">
-            <li><strong>Low:</strong> hold <strong>อา</strong> on a comfortable low pitch for 2 to 3 seconds.</li>
-            <li><strong>Normal:</strong> hold <strong>อา</strong> at normal speaking pitch for 2 to 3 seconds.</li>
-            <li><strong>High:</strong> hold <strong>อา</strong> on a comfortable high pitch for 2 to 3 seconds.</li>
+            <li><strong>Low:</strong> hold <strong>ah</strong> on a comfortable low pitch for 2 to 3 seconds.</li>
+            <li><strong>Normal:</strong> hold <strong>ah</strong> at normal speaking pitch for 2 to 3 seconds.</li>
+            <li><strong>High:</strong> hold <strong>ah</strong> on a comfortable high pitch for 2 to 3 seconds.</li>
           </ol>
 
-          <div class="calibration-grid" aria-label="Normalization samples">
+          <div class="calibration-grid" aria-label="Calibration samples">
             <button class="button calibration-button" type="button" data-calibration="low">
               <span>Low</span>
               <small id="calibrationLowStatus">Needed</small>
@@ -108,9 +107,9 @@
           </div>
 
           <div class="control-row compact">
-            <button id="saveCalibration" class="button primary" type="button">Save normalization</button>
+            <button id="saveCalibration" class="button primary" type="button">Save calibration</button>
             <button id="resetCalibration" class="button" type="button">Reset</button>
-            <span id="calibrationStatus" class="status-text">Start with Low: hold อา on a comfortable low pitch for 2 to 3 seconds.</span>
+            <span id="calibrationStatus" class="status-text">Start with Low: hold ah on a comfortable low pitch for 2 to 3 seconds.</span>
           </div>
 
           <div class="passive-range">
@@ -121,13 +120,17 @@
             <div class="progress-track" aria-hidden="true">
               <progress id="passiveRangeBar" max="100" value="0">0%</progress>
             </div>
-            <p id="passiveRangeStatus">As you practice, the app will collect voiced pitch frames and refine your range after about 30 seconds of speech.</p>
+            <p id="passiveRangeStatus">As you practice, the app will collect voiced pitch frames and refine your calibration after about 30 seconds of speech.</p>
           </div>
         </section>
       </section>
 
       <section id="practiceMode" class="mode-panel">
-        <div class="lesson-rail" id="lessonList" aria-label="Thai tone examples"></div>
+        <div class="scroll-hint-row" data-scroll-hints>
+          <div class="lesson-rail" id="lessonList" aria-label="Thai tone examples" data-scroll-row></div>
+          <button class="scroll-hint-arrow left" type="button" data-scroll-arrow="left" aria-label="Scroll tones left" aria-controls="lessonList"></button>
+          <button class="scroll-hint-arrow right" type="button" data-scroll-arrow="right" aria-label="Scroll tones right" aria-controls="lessonList"></button>
+        </div>
 
         <section class="lesson-focus" aria-labelledby="selectedWord">
           <div class="word-row">
@@ -136,16 +139,17 @@
               <h2 id="selectedWord">มา</h2>
               <p id="selectedTranslation" class="translation">come</p>
             </div>
-            <div class="tone-chip" id="toneChip">mid</div>
           </div>
 
-          <div class="word-variant-list" id="wordVariantList" aria-label="Target words for selected tone"></div>
+          <div class="scroll-hint-row word-variant-scroll-row" data-scroll-hints>
+            <div class="word-variant-list" id="wordVariantList" aria-label="Target words for selected tone" data-scroll-row></div>
+            <button class="scroll-hint-arrow left" type="button" data-scroll-arrow="left" aria-label="Scroll words left" aria-controls="wordVariantList"></button>
+            <button class="scroll-hint-arrow right" type="button" data-scroll-arrow="right" aria-label="Scroll words right" aria-controls="wordVariantList"></button>
+          </div>
 
           <p class="context-line" id="contextLine"></p>
 
-          <div class="cycle-row" aria-label="Cycle target examples">
-            <button id="previousWord" class="button compact" type="button">Prev word</button>
-            <button id="nextWord" class="button compact" type="button">Next word</button>
+          <div class="cycle-row" aria-label="Cycle phrase examples">
             <span id="phraseVariantLabel" class="phrase-count">Phrase 1 of 1</span>
             <button id="previousPhrase" class="button compact" type="button">Prev phrase</button>
             <button id="nextPhrase" class="button compact" type="button">Next phrase</button>
@@ -157,10 +161,6 @@
             <button id="playPhrase" class="button" type="button">Play phrase</button>
             <button id="playPhraseSlow" class="button" type="button">Phrase slow</button>
             <button id="recordPractice" class="button record" type="button">Record attempt</button>
-            <label class="file-button">
-              Upload audio
-              <input id="practiceUpload" type="file" accept="audio/*">
-            </label>
           </div>
 
           <div class="chart-tools">
@@ -173,7 +173,7 @@
 
           <canvas id="practiceCanvas" class="tone-canvas" width="960" height="480" aria-label="Target and learner pitch contours"></canvas>
 
-          <output id="feedback" class="feedback">Record or upload a short syllable to compare your contour with the target.</output>
+          <output id="feedback" class="feedback">Record a short syllable to compare your contour with the target.</output>
 
           <section class="attempt-history" aria-labelledby="historyTitle">
             <h3 id="historyTitle">Recent Attempts</h3>
@@ -215,10 +215,6 @@
 
           <div class="control-row">
             <button id="recordExplore" class="button record" type="button">Record free-form</button>
-            <label class="file-button">
-              Upload audio
-              <input id="exploreUpload" type="file" accept="audio/*">
-            </label>
           </div>
 
           <div class="chart-tools">

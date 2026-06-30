@@ -52,7 +52,7 @@ export function buildCalibration(samples: CalibrationSamples): CalibrationResult
   if (missing.length) {
     return {
       calibration: null,
-      error: "Record low, normal, and high normalization samples before saving calibration."
+      error: "Record low, normal, and high calibration samples before saving calibration."
     };
   }
 
@@ -81,7 +81,7 @@ export function buildCalibration(samples: CalibrationSamples): CalibrationResult
   if (spanSemitones < MIN_CALIBRATION_SPAN_SEMITONES) {
     return {
       calibration: null,
-      error: "The normalization samples were too close together. Make the low and high samples more distinct."
+      error: "The calibration samples were too close together. Make the low and high samples more distinct."
     };
   }
 

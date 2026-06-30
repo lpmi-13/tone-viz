@@ -1,14 +1,18 @@
 import type {
   AudioMap,
   AudioSpeaker,
+  ContextThai,
   Lesson,
   PhraseVariant,
   RegisterBand,
+  SpeakerContextThaiMap,
+  SpeakerWordTextMap,
   TargetWordTiming,
   ToneGroup,
   ToneId,
   ToneTemplateMap,
-  Word
+  Word,
+  WordText
 } from "./types.js";
 
 export const registerBands: RegisterBand[] = [
@@ -69,13 +73,15 @@ export const audioSpeakers: AudioSpeaker[] = [
     id: "premwadee",
     label: "Premwadee",
     voice: "th-TH-PremwadeeNeural",
-    root: "/audio/generated/th-th-premwadee"
+    root: "/audio/generated/th-th-premwadee",
+    gender: "female"
   },
   {
     id: "niwat",
     label: "Niwat",
     voice: "th-TH-NiwatNeural",
-    root: "/audio/generated/th-th-niwat"
+    root: "/audio/generated/th-th-niwat",
+    gender: "male"
   }
 ];
 
@@ -106,26 +112,72 @@ function generatedPhraseVariantAudio(id: string): AudioMap {
   };
 }
 
+type PhraseParts = [before: string, target: string, after: string];
+
+interface PhraseOptions {
+  targetWordTiming?: TargetWordTiming | null;
+  audio?: AudioMap;
+  sourceId?: string | null;
+  speakerContexts?: SpeakerContextThaiMap;
+}
+
+function contextThai([before, target, after]: PhraseParts): ContextThai {
+  return { before, target, after };
+}
+
+function speakerContextsByGender(femaleParts: PhraseParts, maleParts: PhraseParts): SpeakerContextThaiMap {
+  const contexts: SpeakerContextThaiMap = {};
+
+  for (const speaker of audioSpeakers) {
+    contexts[speaker.id] = contextThai(speaker.gender === "male" ? maleParts : femaleParts);
+  }
+
+  return contexts;
+}
+
+function speakerWordTextByGender(femaleWord: WordText, maleWord: WordText): SpeakerWordTextMap {
+  const words: SpeakerWordTextMap = {};
+
+  for (const speaker of audioSpeakers) {
+    words[speaker.id] = speaker.gender === "male" ? maleWord : femaleWord;
+  }
+
+  return words;
+}
+
 function phrase(
   id: string,
   before: string,
   target: string,
   after: string,
   contextTranslation: string,
-  options: {
-    targetWordTiming?: TargetWordTiming | null;
-    audio?: AudioMap;
-    sourceId?: string | null;
-  } = {}
+  options: PhraseOptions = {}
 ): PhraseVariant {
   return {
     id,
     contextThai: { before, target, after },
+    speakerContexts: options.speakerContexts || {},
     contextTranslation,
     targetWordTiming: options.targetWordTiming || null,
     audio: options.audio || {},
     sourceId: options.sourceId || null
   };
+}
+
+function genderedPhrase(
+  id: string,
+  femaleParts: PhraseParts,
+  maleParts: PhraseParts,
+  contextTranslation: string,
+  options: PhraseOptions = {}
+): PhraseVariant {
+  return phrase(id, femaleParts[0], femaleParts[1], femaleParts[2], contextTranslation, {
+    ...options,
+    speakerContexts: {
+      ...speakerContextsByGender(femaleParts, maleParts),
+      ...(options.speakerContexts || {})
+    }
+  });
 }
 
 export const toneGroups: ToneGroup[] = [
@@ -151,13 +203,22 @@ export const toneGroups: ToneGroup[] = [
         thai: "กิน",
         translation: "eat",
         phraseVariants: [
-          phrase("mid-kin-fish-question", "คุณชอบ", "กิน", "ปลาไหมคะ", "Do you like to eat fish?", {
+          genderedPhrase("mid-kin-fish-question",
+            ["คุณชอบ", "กิน", "ปลาไหมคะ"],
+            ["คุณชอบ", "กิน", "ปลาไหมครับ"],
+            "Do you like to eat fish?", {
             sourceId: "word-slice:th-m2-001"
           }),
-          phrase("mid-kin-no-pork", "ดิฉันไม่", "กิน", "หมูค่ะ", "I do not eat pork.", {
+          genderedPhrase("mid-kin-no-pork",
+            ["ดิฉันไม่", "กิน", "หมูค่ะ"],
+            ["ผมไม่", "กิน", "หมูครับ"],
+            "I do not eat pork.", {
             sourceId: "word-slice:th-m2-003"
           }),
-          phrase("mid-kin-spicy", "คุณ", "กิน", "อาหารเผ็ดได้ไหมคะ", "Can you eat spicy food?", {
+          genderedPhrase("mid-kin-spicy",
+            ["คุณ", "กิน", "อาหารเผ็ดได้ไหมคะ"],
+            ["คุณ", "กิน", "อาหารเผ็ดได้ไหมครับ"],
+            "Can you eat spicy food?", {
             sourceId: "word-slice:th-m2-004"
           })
         ]
@@ -167,13 +228,22 @@ export const toneGroups: ToneGroup[] = [
         thai: "ไป",
         translation: "go",
         phraseVariants: [
-          phrase("mid-pai-market", "ผม", "ไป", "ตลาดได้ไหมครับ", "May I go to the market?", {
+          genderedPhrase("mid-pai-market",
+            ["ดิฉัน", "ไป", "ตลาดได้ไหมคะ"],
+            ["ผม", "ไป", "ตลาดได้ไหมครับ"],
+            "May I go to the market?", {
             sourceId: "word-slice:th-d1-003"
           }),
-          phrase("mid-pai-school", "ผมอยากจะ", "ไป", "โรงเรียนครับ", "I want to go to school.", {
+          genderedPhrase("mid-pai-school",
+            ["ดิฉันอยากจะ", "ไป", "โรงเรียนค่ะ"],
+            ["ผมอยากจะ", "ไป", "โรงเรียนครับ"],
+            "I want to go to school.", {
             sourceId: "word-slice:th-d1-004"
           }),
-          phrase("mid-pai-hospital", "ดิฉันอยากจะ", "ไป", "โรงพยาบาลค่ะ", "I want to go to the hospital.", {
+          genderedPhrase("mid-pai-hospital",
+            ["ดิฉันอยากจะ", "ไป", "โรงพยาบาลค่ะ"],
+            ["ผมอยากจะ", "ไป", "โรงพยาบาลครับ"],
+            "I want to go to the hospital.", {
             sourceId: "word-slice:th-d1-005"
           })
         ]
@@ -183,10 +253,16 @@ export const toneGroups: ToneGroup[] = [
         thai: "ปลา",
         translation: "fish",
         phraseVariants: [
-          phrase("mid-pla-like", "คุณชอบกิน", "ปลา", "ไหมคะ", "Do you like to eat fish?", {
+          genderedPhrase("mid-pla-like",
+            ["คุณชอบกิน", "ปลา", "ไหมคะ"],
+            ["คุณชอบกิน", "ปลา", "ไหมครับ"],
+            "Do you like to eat fish?", {
             sourceId: "word-slice:th-m2-001"
           }),
-          phrase("mid-pla-not-like", "ผมไม่ชอบกิน", "ปลา", "ครับ", "I do not like to eat fish.", {
+          genderedPhrase("mid-pla-not-like",
+            ["ดิฉันไม่ชอบกิน", "ปลา", "ค่ะ"],
+            ["ผมไม่ชอบกิน", "ปลา", "ครับ"],
+            "I do not like to eat fish.", {
             sourceId: "word-slice:th-m2-002"
           })
         ]
@@ -231,10 +307,16 @@ export const toneGroups: ToneGroup[] = [
           phrase("low-kai-fried-rice", "ข้าวผัด", "ไก่", "", "Fried rice with chicken.", {
             sourceId: "word-slice:th-e2-004"
           }),
-          phrase("low-kai-grilled", "ขอ", "ไก่", "ย่างสองชิ้น", "Can I have two pieces of grilled chicken?", {
+          genderedPhrase("low-kai-grilled",
+            ["ขอ", "ไก่", "ย่างสองชิ้นค่ะ"],
+            ["ขอ", "ไก่", "ย่างสองชิ้นครับ"],
+            "Can I have two pieces of grilled chicken?", {
             sourceId: "word-slice:th-m1-004"
           }),
-          phrase("low-kai-fried", "ผมชอบกิน", "ไก่", "ทอดครับ", "I like to eat fried chicken.", {
+          genderedPhrase("low-kai-fried",
+            ["ดิฉันชอบกิน", "ไก่", "ทอดค่ะ"],
+            ["ผมชอบกิน", "ไก่", "ทอดครับ"],
+            "I like to eat fried chicken.", {
             sourceId: "word-slice:th-d2-009"
           })
         ]
@@ -253,7 +335,10 @@ export const toneGroups: ToneGroup[] = [
         translation: "rice",
         audio: seedAudio("falling-khao"),
         phraseVariants: [
-          phrase("falling-khao-eat", "ฉันกิน", "ข้าว", "", "I eat rice.", {
+          genderedPhrase("falling-khao-eat",
+            ["ดิฉันกิน", "ข้าว", "ค่ะ"],
+            ["ผมกิน", "ข้าว", "ครับ"],
+            "I eat rice.", {
             audio: seedPhraseAudio("falling-khao")
           }),
           phrase("falling-khao-pork", "", "ข้าว", "ผัดหมู", "Fried rice with pork.", {
@@ -262,7 +347,10 @@ export const toneGroups: ToneGroup[] = [
           phrase("falling-khao-chicken", "", "ข้าว", "ผัดไก่", "Fried rice with chicken.", {
             sourceId: "word-slice:th-e2-004"
           }),
-          phrase("falling-khao-shrimp", "ขอ", "ข้าว", "ผัดกุ้งครับ", "Can I have shrimp fried rice?", {
+          genderedPhrase("falling-khao-shrimp",
+            ["ขอ", "ข้าว", "ผัดกุ้งค่ะ"],
+            ["ขอ", "ข้าว", "ผัดกุ้งครับ"],
+            "Can I have shrimp fried rice?", {
             sourceId: "word-slice:th-m1-002"
           })
         ]
@@ -272,13 +360,22 @@ export const toneGroups: ToneGroup[] = [
         thai: "ไม่",
         translation: "not / no",
         phraseVariants: [
-          phrase("falling-mai-okay", "", "ไม่", "เป็นไรค่ะ", "It's okay / never mind.", {
+          genderedPhrase("falling-mai-okay",
+            ["", "ไม่", "เป็นไรค่ะ"],
+            ["", "ไม่", "เป็นไรครับ"],
+            "It's okay / never mind.", {
             sourceId: "word-slice:th-e1-015"
           }),
-          phrase("falling-mai-fish", "ผม", "ไม่", "ชอบกินปลาครับ", "I do not like to eat fish.", {
+          genderedPhrase("falling-mai-fish",
+            ["ดิฉัน", "ไม่", "ชอบกินปลาค่ะ"],
+            ["ผม", "ไม่", "ชอบกินปลาครับ"],
+            "I do not like to eat fish.", {
             sourceId: "word-slice:th-m2-002"
           }),
-          phrase("falling-mai-understand", "ดิฉัน", "ไม่", "เข้าใจค่ะ", "I do not understand.", {
+          genderedPhrase("falling-mai-understand",
+            ["ดิฉัน", "ไม่", "เข้าใจค่ะ"],
+            ["ผม", "ไม่", "เข้าใจครับ"],
+            "I do not understand.", {
             sourceId: "word-slice:th-d1-006"
           })
         ]
@@ -288,10 +385,16 @@ export const toneGroups: ToneGroup[] = [
         thai: "แม่",
         translation: "mother",
         phraseVariants: [
-          phrase("falling-mae-age", "", "แม่", "ของคุณอายุเท่าไรครับ", "How old is your mother?", {
+          genderedPhrase("falling-mae-age",
+            ["", "แม่", "ของคุณอายุเท่าไรคะ"],
+            ["", "แม่", "ของคุณอายุเท่าไรครับ"],
+            "How old is your mother?", {
             sourceId: "word-slice:th-m2-010"
           }),
-          phrase("falling-mae-my", "", "แม่", "ของดิฉันอายุห้าสิบแปดปีค่ะ", "My mother is fifty-eight years old.", {
+          genderedPhrase("falling-mae-my",
+            ["", "แม่", "ของดิฉันอายุห้าสิบแปดปีค่ะ"],
+            ["", "แม่", "ของผมอายุห้าสิบแปดปีครับ"],
+            "My mother is fifty-eight years old.", {
             sourceId: "word-slice:th-m2-011"
           })
         ]
@@ -301,13 +404,22 @@ export const toneGroups: ToneGroup[] = [
         thai: "ชื่อ",
         translation: "name",
         phraseVariants: [
-          phrase("falling-chue-wichai", "ผม", "ชื่อ", "วิชัย", "My name is Wichai.", {
+          genderedPhrase("falling-chue-wichai",
+            ["ดิฉัน", "ชื่อ", "วิชัย"],
+            ["ผม", "ชื่อ", "วิชัย"],
+            "My name is Wichai.", {
             sourceId: "word-slice:th-e1-003"
           }),
-          phrase("falling-chue-sunisa", "ดิฉัน", "ชื่อ", "สุนิสา", "My name is Sunisa.", {
+          genderedPhrase("falling-chue-sunisa",
+            ["ดิฉัน", "ชื่อ", "สุนิสา"],
+            ["ผม", "ชื่อ", "สุนิสา"],
+            "My name is Sunisa.", {
             sourceId: "word-slice:th-e1-004"
           }),
-          phrase("falling-chue-question", "คุณ", "ชื่อ", "อะไรคะ", "What is your name?", {
+          genderedPhrase("falling-chue-question",
+            ["คุณ", "ชื่อ", "อะไรคะ"],
+            ["คุณ", "ชื่อ", "อะไรครับ"],
+            "What is your name?", {
             sourceId: "word-slice:th-e1-006"
           })
         ]
@@ -339,10 +451,16 @@ export const toneGroups: ToneGroup[] = [
           phrase("high-nam-cold", "", "น้ำ", "เย็น", "Cold water.", {
             sourceId: "word-slice:th-e2-012"
           }),
-          phrase("high-nam-order", "ขอ", "น้ำ", "เย็นหนึ่งขวดครับ", "Can I have one bottle of cold water?", {
+          genderedPhrase("high-nam-order",
+            ["ขอ", "น้ำ", "เย็นหนึ่งขวดค่ะ"],
+            ["ขอ", "น้ำ", "เย็นหนึ่งขวดครับ"],
+            "Can I have one bottle of cold water?", {
             sourceId: "word-slice:th-m1-003"
           }),
-          phrase("high-nam-kind", "เอา", "น้ำ", "อะไรคะ", "What kind of drink do you want?", {
+          genderedPhrase("high-nam-kind",
+            ["เอา", "น้ำ", "อะไรคะ"],
+            ["เอา", "น้ำ", "อะไรครับ"],
+            "What kind of drink do you want?", {
             sourceId: "word-slice:th-m1-012"
           })
         ]
@@ -352,7 +470,10 @@ export const toneGroups: ToneGroup[] = [
         thai: "ซื้อ",
         translation: "buy",
         phraseVariants: [
-          phrase("high-sue-things", "ฉัน", "ซื้อ", "ของ", "I buy things.", {
+          genderedPhrase("high-sue-things",
+            ["ดิฉัน", "ซื้อ", "ของค่ะ"],
+            ["ผม", "ซื้อ", "ของครับ"],
+            "I buy things.", {
             sourceId: "authored"
           }),
           phrase("high-sue-water", "เขา", "ซื้อ", "น้ำ", "They buy water.", {
@@ -384,13 +505,22 @@ export const toneGroups: ToneGroup[] = [
         thai: "ขอ",
         translation: "ask for",
         phraseVariants: [
-          phrase("rising-kho-rice", "", "ขอ", "ข้าวผัดกุ้งครับ", "Can I have shrimp fried rice?", {
+          genderedPhrase("rising-kho-rice",
+            ["", "ขอ", "ข้าวผัดกุ้งค่ะ"],
+            ["", "ขอ", "ข้าวผัดกุ้งครับ"],
+            "Can I have shrimp fried rice?", {
             sourceId: "word-slice:th-m1-002"
           }),
-          phrase("rising-kho-water", "", "ขอ", "น้ำเย็นหนึ่งขวดครับ", "Can I have one bottle of cold water?", {
+          genderedPhrase("rising-kho-water",
+            ["", "ขอ", "น้ำเย็นหนึ่งขวดค่ะ"],
+            ["", "ขอ", "น้ำเย็นหนึ่งขวดครับ"],
+            "Can I have one bottle of cold water?", {
             sourceId: "word-slice:th-m1-003"
           }),
-          phrase("rising-kho-chicken", "", "ขอ", "ไก่ย่างสองชิ้น", "Can I have two pieces of grilled chicken?", {
+          genderedPhrase("rising-kho-chicken",
+            ["", "ขอ", "ไก่ย่างสองชิ้นค่ะ"],
+            ["", "ขอ", "ไก่ย่างสองชิ้นครับ"],
+            "Can I have two pieces of grilled chicken?", {
             sourceId: "word-slice:th-m1-004"
           })
         ]
@@ -399,14 +529,27 @@ export const toneGroups: ToneGroup[] = [
         id: "rising-phom",
         thai: "ผม",
         translation: "I (male)",
+        speakerWords: speakerWordTextByGender(
+          { thai: "ฉัน", translation: "I (female)" },
+          { thai: "ผม", translation: "I (male)" }
+        ),
         phraseVariants: [
-          phrase("rising-phom-name", "", "ผม", "ชื่อวิชัย", "My name is Wichai.", {
+          genderedPhrase("rising-phom-name",
+            ["ดิ", "ฉัน", "ชื่อวิชัย"],
+            ["", "ผม", "ชื่อวิชัย"],
+            "My name is Wichai.", {
             sourceId: "word-slice:th-e1-003"
           }),
-          phrase("rising-phom-fine", "", "ผม", "สบายดีครับ", "I am fine.", {
+          genderedPhrase("rising-phom-fine",
+            ["ดิ", "ฉัน", "สบายดีค่ะ"],
+            ["", "ผม", "สบายดีครับ"],
+            "I am fine.", {
             sourceId: "word-slice:th-e1-010"
           }),
-          phrase("rising-phom-fish", "", "ผม", "ไม่ชอบกินปลาครับ", "I do not like to eat fish.", {
+          genderedPhrase("rising-phom-fish",
+            ["ดิ", "ฉัน", "ไม่ชอบกินปลาค่ะ"],
+            ["", "ผม", "ไม่ชอบกินปลาครับ"],
+            "I do not like to eat fish.", {
             sourceId: "word-slice:th-m2-002"
           })
         ]
@@ -416,13 +559,22 @@ export const toneGroups: ToneGroup[] = [
         thai: "ไหม",
         translation: "question particle",
         phraseVariants: [
-          phrase("rising-mai-fine", "คุณสบายดี", "ไหม", "ครับ", "How are you?", {
+          genderedPhrase("rising-mai-fine",
+            ["คุณสบายดี", "ไหม", "คะ"],
+            ["คุณสบายดี", "ไหม", "ครับ"],
+            "How are you?", {
             sourceId: "word-slice:th-e1-011"
           }),
-          phrase("rising-mai-fish", "คุณชอบกินปลา", "ไหม", "คะ", "Do you like to eat fish?", {
+          genderedPhrase("rising-mai-fish",
+            ["คุณชอบกินปลา", "ไหม", "คะ"],
+            ["คุณชอบกินปลา", "ไหม", "ครับ"],
+            "Do you like to eat fish?", {
             sourceId: "word-slice:th-m2-001"
           }),
-          phrase("rising-mai-market", "ผมไปตลาดได้", "ไหม", "ครับ", "May I go to the market?", {
+          genderedPhrase("rising-mai-market",
+            ["ดิฉันไปตลาดได้", "ไหม", "คะ"],
+            ["ผมไปตลาดได้", "ไหม", "ครับ"],
+            "May I go to the market?", {
             sourceId: "word-slice:th-d1-003"
           })
         ]
@@ -441,6 +593,15 @@ export const quizLessons: Lesson[] = toneGroups.flatMap((group) =>
     return variants.map((variant) => normalizeLesson(group, word, variant));
   })
 );
+
+export function getQuizLessonsForSpeaker(speakerId: string): Lesson[] {
+  return toneGroups.flatMap((group) =>
+    group.words.flatMap((word) => {
+      const variants = word.phraseVariants.length ? word.phraseVariants : [null];
+      return variants.map((variant) => normalizeLesson(group, word, variant, speakerId));
+    })
+  );
+}
 
 export const defaultSelection: { toneId: ToneId; wordId: string; phraseVariantId: string | null } = {
   toneId: toneGroups[0].id,
@@ -465,31 +626,45 @@ export function getPhraseVariantById(word: Word | null | undefined, phraseVarian
   return word.phraseVariants.find((variant) => variant.id === phraseVariantId) || word.phraseVariants[0];
 }
 
-export function getLessonSelection(toneId: string, wordId: string, phraseVariantId: string | null): Lesson {
+export function getWordTextForSpeaker(word: Word, speakerId = defaultAudioSpeakerId): WordText {
+  return word.speakerWords?.[speakerId] || word;
+}
+
+export function getLessonSelection(toneId: string, wordId: string, phraseVariantId: string | null, speakerId = defaultAudioSpeakerId): Lesson {
   const group = getToneGroupById(toneId);
   const word = getWordById(group.id, wordId);
   const phraseVariant = getPhraseVariantById(word, phraseVariantId);
-  return normalizeLesson(group, word, phraseVariant);
+  return normalizeLesson(group, word, phraseVariant, speakerId);
 }
 
-export function getLessonById(id: unknown): Lesson {
+export function getLessonById(id: unknown, speakerId = defaultAudioSpeakerId): Lesson {
   const [wordId, phraseVariantId] = splitLessonId(id);
 
   for (const group of toneGroups) {
     const word = group.words.find((candidate) => candidate.id === wordId);
     if (word) {
-      return normalizeLesson(group, word, getPhraseVariantById(word, phraseVariantId));
+      return normalizeLesson(group, word, getPhraseVariantById(word, phraseVariantId), speakerId);
     }
   }
 
   return lessons[0];
 }
 
-export function getQuizLessonById(id: string): Lesson {
-  return quizLessons.find((lesson) => lesson.id === id) || quizLessons[0];
+export function getQuizLessonById(id: string, speakerId = defaultAudioSpeakerId): Lesson {
+  const [wordId, phraseVariantId] = splitLessonId(id);
+
+  for (const group of toneGroups) {
+    const word = group.words.find((candidate) => candidate.id === wordId);
+    if (word) {
+      return normalizeLesson(group, word, getPhraseVariantById(word, phraseVariantId), speakerId);
+    }
+  }
+
+  return quizLessons[0];
 }
 
-function normalizeLesson(group: ToneGroup, word: Word, phraseVariant: PhraseVariant | null): Lesson {
+function normalizeLesson(group: ToneGroup, word: Word, phraseVariant: PhraseVariant | null, speakerId = defaultAudioSpeakerId): Lesson {
+  const wordText = getWordTextForSpeaker(word, speakerId);
   const audio = {
     ...(phraseVariant ? generatedPhraseVariantAudio(phraseVariant.id) : {}),
     ...(word.audio || {}),
@@ -502,19 +677,27 @@ function normalizeLesson(group: ToneGroup, word: Word, phraseVariant: PhraseVari
     tone: group.tone,
     toneId: group.id,
     toneLabelEnglish: group.toneLabelEnglish,
-    thai: word.thai,
-    translation: word.translation,
+    thai: wordText.thai,
+    translation: wordText.translation,
     wordId: word.id,
     phraseVariantId: phraseVariant?.id || null,
     phraseVariantIndex: phraseIndex,
     phraseVariantCount: word.phraseVariants.length,
-    contextThai: phraseVariant?.contextThai || null,
+    contextThai: resolvePhraseContextThai(phraseVariant, speakerId),
     contextTranslation: phraseVariant?.contextTranslation || "",
     targetWordTiming: phraseVariant?.targetWordTiming || null,
     audio,
     contour: word.contour || group.contour,
     sourceId: phraseVariant?.sourceId || word.sourceId || null
   };
+}
+
+function resolvePhraseContextThai(phraseVariant: PhraseVariant | null, speakerId: string): ContextThai | null {
+  if (!phraseVariant) {
+    return null;
+  }
+
+  return phraseVariant.speakerContexts[speakerId] || phraseVariant.contextThai;
 }
 
 function splitLessonId(id: unknown): [string, string | null] {

@@ -63,27 +63,30 @@ def main() -> int:
     return 0
 
 
-def load_lesson_items_from_data_ts() -> list[dict]:
+def load_lesson_items_from_data_ts() -> object:
     subprocess.run(
         ["npm", "run", "build:ts"],
         cwd=ROOT,
         check=True,
     )
     script = """
-      import { quizLessons } from "./.build/assets/data.js";
-      const items = quizLessons.map((lesson) => ({
-        id: lesson.phraseVariantId || lesson.id.replace(/[^a-zA-Z0-9_-]+/g, "-"),
-        thai: lesson.thai,
-        translation: lesson.translation,
-        tone: lesson.tone,
-        expectedContour: lesson.toneLabelEnglish,
-        contextThai: lesson.contextThai
-          ? `${lesson.contextThai.before || ""}${lesson.contextThai.target || ""}${lesson.contextThai.after || ""}`
-          : lesson.thai,
-        contextTranslation: lesson.contextTranslation || "",
-        audio: lesson.audio || {}
+      import { audioSpeakers, getQuizLessonsForSpeaker } from "./.build/assets/data.js";
+      const itemsByVoice = Object.fromEntries(audioSpeakers.map((speaker) => {
+        const items = getQuizLessonsForSpeaker(speaker.id).map((lesson) => ({
+          id: lesson.phraseVariantId || lesson.id.replace(/[^a-zA-Z0-9_-]+/g, "-"),
+          thai: lesson.thai,
+          translation: lesson.translation,
+          tone: lesson.tone,
+          expectedContour: lesson.toneLabelEnglish,
+          contextThai: lesson.contextThai
+            ? `${lesson.contextThai.before || ""}${lesson.contextThai.target || ""}${lesson.contextThai.after || ""}`
+            : lesson.thai,
+          contextTranslation: lesson.contextTranslation || "",
+          audio: lesson.audio || {}
+        }));
+        return [speaker.voice, items];
       }));
-      process.stdout.write(JSON.stringify(items));
+      process.stdout.write(JSON.stringify({ itemsByVoice }));
     """
     result = subprocess.run(
         ["node", "--input-type=module", "-e", script],
@@ -97,15 +100,24 @@ def load_lesson_items_from_data_ts() -> list[dict]:
 
 async def generate_all(edge_tts, items, voices, output_root: Path, include_phrases: bool, force: bool) -> None:
     for voice in voices:
+        voice_items = items_for_voice(items, voice)
         voice_dir = output_root / slugify_voice(voice)
         voice_dir.mkdir(parents=True, exist_ok=True)
-        for item in items:
+        for item in voice_items:
             for variant, settings in WORD_VARIANTS.items():
                 await synthesize(edge_tts, item["thai"], voice, settings, output_path_for(item, voice_dir, variant, settings["suffix"]), force)
 
             if include_phrases:
                 for variant, settings in PHRASE_VARIANTS.items():
                     await synthesize(edge_tts, item["contextThai"], voice, settings, output_path_for(item, voice_dir, variant, settings["suffix"]), force)
+
+
+def items_for_voice(items, voice: str) -> list[dict]:
+    if isinstance(items, dict) and isinstance(items.get("itemsByVoice"), dict):
+        items_by_voice = items["itemsByVoice"]
+        return items_by_voice.get(voice) or next(iter(items_by_voice.values()), [])
+
+    return items
 
 
 def output_path_for(item: dict, voice_dir: Path, variant: str, fallback_suffix: str) -> Path:

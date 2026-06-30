@@ -4,6 +4,7 @@ export type RecordingKind = "practice" | "explore" | `calibration-${CalibrationK
 export type PlaybackVariant = "natural" | "exaggerated" | "phrase" | "phraseSlow";
 export type Direction = "up" | "down";
 export type SpeakerProfileSource = "manual" | "passive" | "hybrid" | string;
+export type AudioSpeakerGender = "female" | "male";
 
 export interface TonePoint {
   t: number;
@@ -42,6 +43,15 @@ export interface ContextThai {
   after: string;
 }
 
+export type SpeakerContextThaiMap = Partial<Record<string, ContextThai>>;
+
+export interface WordText {
+  thai: string;
+  translation: string;
+}
+
+export type SpeakerWordTextMap = Partial<Record<string, WordText>>;
+
 export interface TargetWordTiming {
   start: number;
   end: number;
@@ -50,6 +60,7 @@ export interface TargetWordTiming {
 export interface PhraseVariant {
   id: string;
   contextThai: ContextThai;
+  speakerContexts: SpeakerContextThaiMap;
   contextTranslation: string;
   targetWordTiming: TargetWordTiming | null;
   audio: AudioMap;
@@ -60,6 +71,7 @@ export interface Word {
   id: string;
   thai: string;
   translation: string;
+  speakerWords?: SpeakerWordTextMap;
   audio?: AudioMap;
   phraseVariants: PhraseVariant[];
   contour?: TonePoint[];
@@ -98,6 +110,7 @@ export interface AudioSpeaker {
   label: string;
   voice: string;
   root: string;
+  gender: AudioSpeakerGender;
 }
 
 export interface PitchFrame {

@@ -5,6 +5,7 @@ import {
   getLessonSelection,
   getQuizLessonById,
   getToneGroupById,
+  getWordTextForSpeaker,
   getWordById,
   quizLessons,
   toneGroups,
@@ -167,6 +168,7 @@ function bindEvents() {
   elements.playPhraseSlow.addEventListener("click", () => playSelectedTarget("phraseSlow"));
   elements.targetSpeaker.addEventListener("change", () => {
     state.selectedSpeakerId = elements.targetSpeaker.value;
+    renderLessonList();
     render();
   });
   elements.previousWord.addEventListener("click", () => cycleSelectedWord(-1));
@@ -303,7 +305,7 @@ function renderLessonList() {
     button.type = "button";
     button.className = "lesson-card";
     button.dataset.toneId = group.id;
-    const preview = group.words.map((word) => word.thai).join(" ");
+    const preview = group.words.map((word) => getWordTextForSpeaker(word, state.selectedSpeakerId).thai).join(" ");
     button.innerHTML = `
       <span class="tone-name">${group.toneLabelEnglish}</span>
       <span class="meta"><strong>${group.words.length} words</strong><span>${preview}</span></span>
@@ -333,13 +335,14 @@ function renderWordVariants() {
   elements.wordVariantList.innerHTML = "";
 
   for (const word of group.words) {
+    const wordText = getWordTextForSpeaker(word, state.selectedSpeakerId);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "word-variant";
     button.dataset.wordId = word.id;
     button.innerHTML = `
-      <span class="thai">${word.thai}</span>
-      <span>${word.translation}</span>
+      <span class="thai">${wordText.thai}</span>
+      <span>${wordText.translation}</span>
     `;
     button.classList.toggle("is-active", word.id === state.selectedWordId);
     button.addEventListener("click", () => {
@@ -1398,12 +1401,13 @@ function getSelectedLesson(): Lesson {
   return getLessonSelection(
     state.selectedToneId,
     state.selectedWordId,
-    state.selectedPhraseVariantId
+    state.selectedPhraseVariantId,
+    state.selectedSpeakerId
   );
 }
 
 function getQuizLesson(): Lesson {
-  return getQuizLessonById(state.quizLessonId);
+  return getQuizLessonById(state.quizLessonId, state.selectedSpeakerId);
 }
 
 function getSelectedSpeaker(): AudioSpeaker {

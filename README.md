@@ -13,7 +13,7 @@ python3 -m http.server 5173 -d dist
 
 Then open `http://localhost:5173`.
 
-The build writes JavaScript and CSS assets to `dist/assets/`, emits gzip and Brotli versions for each `.js` and `.css` asset, copies the static audio files into `dist/audio/`, and injects a Content Security Policy that directly names the built JS/CSS hashes.
+The build writes JavaScript and CSS assets to `dist/assets/`, emits gzip and Brotli versions for each `.js` and `.css` asset, copies root static files from `public/`, and copies the static audio files into `dist/audio/`. Netlify serves the Content Security Policy and other security headers from `netlify.toml`. Set `SITE_URL` in Netlify to override the canonical/social preview URL; otherwise the build uses Netlify's `URL`.
 
 ## Audio
 

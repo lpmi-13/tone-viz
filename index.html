@@ -24,8 +24,15 @@
               <button id="voiceRangeMenuItem" type="button" role="menuitem">Voice range</button>
             </div>
           </div>
+          <label class="select-field speaker-select">
+            <span>Speaker</span>
+            <select id="targetSpeaker">
+              <option>Premwadee</option>
+            </select>
+          </label>
           <nav class="mode-toggle" aria-label="Mode">
             <button class="mode-button is-active" type="button" data-mode="practice">Practice</button>
+            <button class="mode-button" type="button" data-mode="quiz">Quiz</button>
             <button class="mode-button" type="button" data-mode="explore">Explore</button>
           </nav>
         </div>
@@ -38,7 +45,7 @@
       <section id="firstUseNote" class="first-use-note" aria-labelledby="firstUseTitle">
         <div>
           <h2 id="firstUseTitle">Quick start</h2>
-          <p>Set your voice range when prompted. Then play a target and tap once or hold the record button while speaking.</p>
+          <p>Set your voice range when prompted. Practice with isolated words and phrase clips, or use Quiz to identify a highlighted word's tone.</p>
         </div>
         <button id="dismissFirstUse" class="button" type="button">Dismiss</button>
       </section>
@@ -113,11 +120,23 @@
             <div class="tone-chip" id="toneChip">mid</div>
           </div>
 
+          <div class="word-variant-list" id="wordVariantList" aria-label="Target words for selected tone"></div>
+
           <p class="context-line" id="contextLine"></p>
+
+          <div class="cycle-row" aria-label="Cycle target examples">
+            <button id="previousWord" class="button compact" type="button">Prev word</button>
+            <button id="nextWord" class="button compact" type="button">Next word</button>
+            <span id="phraseVariantLabel" class="phrase-count">Phrase 1 of 1</span>
+            <button id="previousPhrase" class="button compact" type="button">Prev phrase</button>
+            <button id="nextPhrase" class="button compact" type="button">Next phrase</button>
+          </div>
 
           <div class="control-row">
             <button id="playNatural" class="button primary" type="button">Play target</button>
             <button id="playSlow" class="button" type="button">Play slow</button>
+            <button id="playPhrase" class="button" type="button">Play phrase</button>
+            <button id="playPhraseSlow" class="button" type="button">Phrase slow</button>
             <button id="recordPractice" class="button record" type="button">Record attempt</button>
             <label class="file-button">
               Upload audio
@@ -141,6 +160,28 @@
             <h3 id="historyTitle">Recent Attempts</h3>
             <ul id="historyList"></ul>
           </section>
+        </section>
+      </section>
+
+      <section id="quizMode" class="mode-panel is-hidden" aria-labelledby="quizTitle">
+        <section class="quiz-panel">
+          <div class="section-heading">
+            <div>
+              <p class="tone-kicker">Tone recognition</p>
+              <h2 id="quizTitle">Identify the highlighted word</h2>
+            </div>
+            <div id="quizCount" class="tone-chip">0 / 0</div>
+          </div>
+
+          <p id="quizPrompt" class="context-line"></p>
+
+          <div class="control-row">
+            <button id="playQuizClip" class="button primary" type="button">Play clip</button>
+            <button id="nextQuizItem" class="button" type="button">Next item</button>
+          </div>
+
+          <div id="quizOptions" class="quiz-options" aria-label="Tone choices"></div>
+          <output id="quizFeedback" class="feedback">Play the phrase, then choose the tone of the highlighted word.</output>
         </section>
       </section>
 

@@ -1,4 +1,15 @@
-import { lessons, getLessonById } from "./data.js";
+import {
+  audioSpeakers,
+  defaultSelection,
+  defaultAudioSpeakerId,
+  getLessonSelection,
+  getQuizLessonById,
+  getToneGroupById,
+  getWordById,
+  quizLessons,
+  toneGroups,
+  toneTemplates
+} from "./data.js";
 import { playLessonTarget, decodeBlobToAudioBuffer } from "./audio.js";
 import { analyzeAudioBuffer, buildCalibration } from "./pitch.js";
 import { compareContours } from "./compare.js";
@@ -22,10 +33,17 @@ const CALIBRATION_PROMPTS = {
   normal: "Hold อา at your normal speaking pitch for 2 to 3 seconds.",
   high: "Hold อา on a comfortable high pitch for 2 to 3 seconds."
 };
+const TONE_OPTIONS = Object.entries(toneTemplates).map(([id, template]) => ({
+  id,
+  label: template.label
+}));
 
 const state = {
   mode: "practice",
-  selectedLessonId: lessons[0].id,
+  selectedToneId: defaultSelection.toneId,
+  selectedWordId: defaultSelection.wordId,
+  selectedPhraseVariantId: defaultSelection.phraseVariantId,
+  selectedSpeakerId: defaultAudioSpeakerId,
   practiceAttempt: null,
   practiceComparison: null,
   exploreAttempt: null,
@@ -41,6 +59,12 @@ const state = {
   processingKind: null,
   holdGesture: null,
   suppressRecordClick: false,
+  quizLessonId: quizLessons[0].id,
+  quizAnsweredTone: null,
+  quizStats: {
+    answered: 0,
+    correct: 0
+  },
   history: []
 };
 
@@ -52,21 +76,37 @@ const elements = {
   normalizationMode: document.querySelector("#normalizationMode"),
   modeButtons: [...document.querySelectorAll("[data-mode]")],
   practiceMode: document.querySelector("#practiceMode"),
+  quizMode: document.querySelector("#quizMode"),
   exploreMode: document.querySelector("#exploreMode"),
   lessonList: document.querySelector("#lessonList"),
+  wordVariantList: document.querySelector("#wordVariantList"),
   selectedTone: document.querySelector("#selectedTone"),
   selectedWord: document.querySelector("#selectedWord"),
   selectedTranslation: document.querySelector("#selectedTranslation"),
   toneChip: document.querySelector("#toneChip"),
+  targetSpeaker: document.querySelector("#targetSpeaker"),
   contextLine: document.querySelector("#contextLine"),
+  previousWord: document.querySelector("#previousWord"),
+  nextWord: document.querySelector("#nextWord"),
+  previousPhrase: document.querySelector("#previousPhrase"),
+  nextPhrase: document.querySelector("#nextPhrase"),
+  phraseVariantLabel: document.querySelector("#phraseVariantLabel"),
   menuButton: document.querySelector("#menuButton"),
   appMenu: document.querySelector("#appMenu"),
   voiceRangeMenuItem: document.querySelector("#voiceRangeMenuItem"),
   calibrationPanel: document.querySelector("#calibrationPanel"),
   playNatural: document.querySelector("#playNatural"),
   playSlow: document.querySelector("#playSlow"),
+  playPhrase: document.querySelector("#playPhrase"),
+  playPhraseSlow: document.querySelector("#playPhraseSlow"),
   recordPractice: document.querySelector("#recordPractice"),
   recordExplore: document.querySelector("#recordExplore"),
+  playQuizClip: document.querySelector("#playQuizClip"),
+  nextQuizItem: document.querySelector("#nextQuizItem"),
+  quizPrompt: document.querySelector("#quizPrompt"),
+  quizOptions: document.querySelector("#quizOptions"),
+  quizFeedback: document.querySelector("#quizFeedback"),
+  quizCount: document.querySelector("#quizCount"),
   calibrationButtons: [...document.querySelectorAll("[data-calibration]")],
   calibrationLowStatus: document.querySelector("#calibrationLowStatus"),
   calibrationNormalStatus: document.querySelector("#calibrationNormalStatus"),
@@ -98,6 +138,7 @@ function init() {
   state.passiveRange = loadPassiveRange();
   state.normalizationActive = shouldShowNormalizationOnLoad();
   renderLessonList();
+  renderSpeakerOptions();
   bindEvents();
   render();
 }
@@ -109,6 +150,18 @@ function bindEvents() {
 
   elements.playNatural.addEventListener("click", () => playSelectedTarget("natural"));
   elements.playSlow.addEventListener("click", () => playSelectedTarget("exaggerated"));
+  elements.playPhrase.addEventListener("click", () => playSelectedTarget("phrase"));
+  elements.playPhraseSlow.addEventListener("click", () => playSelectedTarget("phraseSlow"));
+  elements.targetSpeaker.addEventListener("change", () => {
+    state.selectedSpeakerId = elements.targetSpeaker.value;
+    render();
+  });
+  elements.previousWord.addEventListener("click", () => cycleSelectedWord(-1));
+  elements.nextWord.addEventListener("click", () => cycleSelectedWord(1));
+  elements.previousPhrase.addEventListener("click", () => cycleSelectedPhrase(-1));
+  elements.nextPhrase.addEventListener("click", () => cycleSelectedPhrase(1));
+  elements.playQuizClip.addEventListener("click", playQuizClip);
+  elements.nextQuizItem.addEventListener("click", nextQuizItem);
   bindRecordControl(elements.recordPractice, () => "practice");
   bindRecordControl(elements.recordExplore, () => "explore");
   elements.menuButton.addEventListener("click", toggleAppMenu);
@@ -232,24 +285,132 @@ function setMode(mode) {
 function renderLessonList() {
   elements.lessonList.innerHTML = "";
 
-  for (const lesson of lessons) {
+  for (const group of toneGroups) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "lesson-card";
-    button.dataset.lessonId = lesson.id;
+    button.dataset.toneId = group.id;
+    const preview = group.words.map((word) => word.thai).join(" ");
     button.innerHTML = `
-      <span class="thai">${lesson.thai}</span>
-      <span class="meta"><strong>${lesson.toneLabelEnglish}</strong><span>${lesson.translation}</span></span>
+      <span class="tone-name">${group.toneLabelEnglish}</span>
+      <span class="meta"><strong>${group.words.length} words</strong><span>${preview}</span></span>
     `;
     button.addEventListener("click", () => {
-      state.selectedLessonId = lesson.id;
-      state.practiceAttempt = null;
-      state.practiceComparison = null;
-      elements.feedback.value = "Record or upload a short syllable to compare your contour with the target.";
-      render();
+      selectTone(group.id);
     });
     elements.lessonList.append(button);
   }
+}
+
+function renderSpeakerOptions() {
+  elements.targetSpeaker.replaceChildren();
+
+  for (const speaker of audioSpeakers) {
+    const option = document.createElement("option");
+    option.value = speaker.id;
+    option.textContent = speaker.label;
+    elements.targetSpeaker.append(option);
+  }
+
+  elements.targetSpeaker.value = state.selectedSpeakerId;
+}
+
+function renderWordVariants() {
+  const group = getToneGroupById(state.selectedToneId);
+  elements.wordVariantList.innerHTML = "";
+
+  for (const word of group.words) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "word-variant";
+    button.dataset.wordId = word.id;
+    button.innerHTML = `
+      <span class="thai">${word.thai}</span>
+      <span>${word.translation}</span>
+    `;
+    button.classList.toggle("is-active", word.id === state.selectedWordId);
+    button.addEventListener("click", () => {
+      selectWord(word.id);
+    });
+    elements.wordVariantList.append(button);
+  }
+}
+
+function selectTone(toneId) {
+  const group = getToneGroupById(toneId);
+  const word = group.words[0];
+  state.selectedToneId = group.id;
+  state.selectedWordId = word.id;
+  state.selectedPhraseVariantId = word.phraseVariants[0]?.id || null;
+  resetPracticeAttempt();
+  render();
+}
+
+function selectWord(wordId) {
+  const word = getWordById(state.selectedToneId, wordId);
+  state.selectedWordId = word.id;
+  state.selectedPhraseVariantId = word.phraseVariants[0]?.id || null;
+  resetPracticeAttempt();
+  render();
+}
+
+function cycleSelectedWord(direction) {
+  const group = getToneGroupById(state.selectedToneId);
+  const currentIndex = group.words.findIndex((word) => word.id === state.selectedWordId);
+  const nextIndex = wrapIndex(currentIndex + direction, group.words.length);
+  selectWord(group.words[nextIndex].id);
+}
+
+function cycleSelectedPhrase(direction) {
+  const word = getWordById(state.selectedToneId, state.selectedWordId);
+  if (word.phraseVariants.length < 2) {
+    return;
+  }
+
+  const currentIndex = word.phraseVariants.findIndex((variant) => variant.id === state.selectedPhraseVariantId);
+  const nextIndex = wrapIndex(currentIndex + direction, word.phraseVariants.length);
+  state.selectedPhraseVariantId = word.phraseVariants[nextIndex].id;
+  resetPracticeAttempt();
+  render();
+}
+
+function resetPracticeAttempt() {
+  state.practiceAttempt = null;
+  state.practiceComparison = null;
+  elements.feedback.value = "Record or upload a short syllable to compare your contour with the target.";
+}
+
+function wrapIndex(index, length) {
+  if (length <= 0) {
+    return 0;
+  }
+
+  return (index % length + length) % length;
+}
+
+function renderCycleControls() {
+  const group = getToneGroupById(state.selectedToneId);
+  const word = getWordById(group.id, state.selectedWordId);
+  const phraseCount = word.phraseVariants.length;
+  const phraseIndex = Math.max(0, word.phraseVariants.findIndex((variant) => variant.id === state.selectedPhraseVariantId));
+
+  elements.phraseVariantLabel.textContent = phraseCount > 1
+    ? `Phrase ${phraseIndex + 1} of ${phraseCount}`
+    : "Phrase 1 of 1";
+  updateCycleButtons();
+}
+
+function updateCycleButtons() {
+  const group = getToneGroupById(state.selectedToneId);
+  const word = getWordById(group.id, state.selectedWordId);
+  const busy = Boolean(state.processingKind || state.recording);
+  const wordDisabled = busy || group.words.length < 2;
+  const phraseDisabled = busy || word.phraseVariants.length < 2;
+
+  elements.previousWord.disabled = wordDisabled;
+  elements.nextWord.disabled = wordDisabled;
+  elements.previousPhrase.disabled = phraseDisabled;
+  elements.nextPhrase.disabled = phraseDisabled;
 }
 
 function render() {
@@ -258,35 +419,67 @@ function render() {
   elements.selectedWord.textContent = lesson.thai;
   elements.selectedTranslation.textContent = lesson.translation;
   elements.toneChip.textContent = lesson.tone;
+  elements.targetSpeaker.value = state.selectedSpeakerId;
+  renderWordVariants();
   renderContext(lesson);
+  renderCycleControls();
 
   for (const button of elements.lessonList.querySelectorAll(".lesson-card")) {
-    button.classList.toggle("is-active", button.dataset.lessonId === lesson.id);
+    button.classList.toggle("is-active", button.dataset.toneId === lesson.toneId);
   }
 
   renderCharts();
   renderHistory();
+  renderQuiz();
   renderCalibration();
   renderVisibility();
 }
 
 function renderContext(lesson) {
-  const context = lesson.contextThai;
   elements.contextLine.replaceChildren();
+  appendContextLine(elements.contextLine, lesson);
+}
+
+function renderQuiz() {
+  const lesson = getQuizLesson();
+  elements.quizPrompt.replaceChildren();
+  appendContextLine(elements.quizPrompt, lesson);
+  elements.quizCount.textContent = `${state.quizStats.correct} / ${state.quizStats.answered}`;
+  elements.quizOptions.replaceChildren();
+
+  for (const option of TONE_OPTIONS) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button quiz-option";
+    button.textContent = option.label;
+    button.disabled = Boolean(state.quizAnsweredTone);
+    button.classList.toggle("is-correct", state.quizAnsweredTone && option.id === lesson.tone);
+    button.classList.toggle("is-wrong", state.quizAnsweredTone === option.id && option.id !== lesson.tone);
+    button.addEventListener("click", () => answerQuiz(option.id));
+    elements.quizOptions.append(button);
+  }
+
+  if (!state.quizAnsweredTone) {
+    elements.quizFeedback.value = "Play the phrase, then choose the tone of the highlighted word.";
+  }
+}
+
+function appendContextLine(container, lesson) {
+  const context = lesson.contextThai;
 
   if (!context) {
-    elements.contextLine.textContent = lesson.contextTranslation || "";
+    container.textContent = lesson.thai;
     return;
   }
 
-  elements.contextLine.append(document.createTextNode(context.before || ""));
+  container.append(document.createTextNode(context.before || ""));
   const mark = document.createElement("mark");
   mark.textContent = context.target;
-  elements.contextLine.append(mark);
-  elements.contextLine.append(document.createTextNode(context.after || ""));
+  container.append(mark);
+  container.append(document.createTextNode(context.after || ""));
 
   if (lesson.contextTranslation) {
-    elements.contextLine.append(document.createTextNode(` - ${lesson.contextTranslation}`));
+    container.append(document.createTextNode(` - ${lesson.contextTranslation}`));
   }
 }
 
@@ -297,6 +490,7 @@ function renderVisibility() {
   elements.firstUseNote.classList.toggle("is-hidden", normalizing || hasDismissedFirstUse());
   elements.normalizationMode.classList.toggle("is-hidden", !normalizing);
   elements.practiceMode.classList.toggle("is-hidden", normalizing || state.mode !== "practice");
+  elements.quizMode.classList.toggle("is-hidden", normalizing || state.mode !== "quiz");
   elements.exploreMode.classList.toggle("is-hidden", normalizing || state.mode !== "explore");
 
   if (normalizing) {
@@ -329,14 +523,65 @@ function renderCharts() {
 
 async function playSelectedTarget(variant) {
   const lesson = getSelectedLesson();
-  setPracticeStatus(variant === "exaggerated" ? "Playing slow target contour." : "Playing target contour.");
+  const speaker = getSelectedSpeaker();
+  const messages = {
+    natural: `Playing isolated target word with ${speaker.label}.`,
+    exaggerated: `Playing slow isolated target word with ${speaker.label}.`,
+    phrase: `Playing phrase with ${speaker.label}.`,
+    phraseSlow: `Playing slow phrase with ${speaker.label}.`
+  };
+  setPracticeStatus(messages[variant] || "Playing target audio.");
 
   try {
-    await playLessonTarget(lesson, variant);
+    await playLessonTarget(lesson, variant, speaker);
     setPracticeStatus("Ready for an attempt.");
   } catch (error) {
     setPracticeStatus(error.message || "Target playback failed.");
   }
+}
+
+async function playQuizClip() {
+  const lesson = getQuizLesson();
+  const speaker = getSelectedSpeaker();
+  elements.quizFeedback.value = `Playing ${speaker.label}. Listen for the highlighted word.`;
+
+  try {
+    await playLessonTarget(lesson, "phrase", speaker);
+    if (!state.quizAnsweredTone) {
+      elements.quizFeedback.value = "Choose the tone of the highlighted word.";
+    }
+  } catch (error) {
+    elements.quizFeedback.value = error.message || "Quiz clip playback failed.";
+  }
+}
+
+function answerQuiz(toneId) {
+  if (state.quizAnsweredTone) {
+    return;
+  }
+
+  const lesson = getQuizLesson();
+  const correct = toneId === lesson.tone;
+  state.quizAnsweredTone = toneId;
+  state.quizStats.answered += 1;
+
+  if (correct) {
+    state.quizStats.correct += 1;
+    elements.quizFeedback.value = `Correct. ${lesson.thai} is ${lesson.toneLabelEnglish.toLowerCase()} tone.`;
+  } else {
+    const selected = TONE_OPTIONS.find((option) => option.id === toneId)?.label || toneId;
+    elements.quizFeedback.value = `${selected} is not right here. ${lesson.thai} is ${lesson.toneLabelEnglish.toLowerCase()} tone.`;
+  }
+
+  renderQuiz();
+}
+
+function nextQuizItem() {
+  const currentIndex = quizLessons.findIndex((lesson) => lesson.id === state.quizLessonId);
+  const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % quizLessons.length;
+  state.quizLessonId = quizLessons[nextIndex].id;
+  state.quizAnsweredTone = null;
+  renderQuiz();
 }
 
 async function toggleRecording(kind) {
@@ -695,6 +940,12 @@ function updateRecordingButtons() {
   elements.recordExplore.disabled = busy || Boolean(state.recording && !exploreRecording);
   elements.playNatural.disabled = busy || Boolean(state.recording);
   elements.playSlow.disabled = busy || Boolean(state.recording);
+  elements.playPhrase.disabled = busy || Boolean(state.recording);
+  elements.playPhraseSlow.disabled = busy || Boolean(state.recording);
+  elements.targetSpeaker.disabled = busy || Boolean(state.recording);
+  elements.playQuizClip.disabled = busy || Boolean(state.recording);
+  elements.nextQuizItem.disabled = busy || Boolean(state.recording);
+  updateCycleButtons();
   setFileInputDisabled(elements.practiceUpload, busy || Boolean(state.recording));
   setFileInputDisabled(elements.exploreUpload, busy || Boolean(state.recording));
   elements.practiceCanvas.toggleAttribute("aria-busy", state.processingKind === "practice");
@@ -1129,7 +1380,19 @@ function firstFinite(...values) {
 }
 
 function getSelectedLesson() {
-  return getLessonById(state.selectedLessonId);
+  return getLessonSelection(
+    state.selectedToneId,
+    state.selectedWordId,
+    state.selectedPhraseVariantId
+  );
+}
+
+function getQuizLesson() {
+  return getQuizLessonById(state.quizLessonId);
+}
+
+function getSelectedSpeaker() {
+  return audioSpeakers.find((speaker) => speaker.id === state.selectedSpeakerId) || audioSpeakers[0];
 }
 
 init();

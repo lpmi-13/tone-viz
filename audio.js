@@ -1,4 +1,6 @@
 let sharedAudioContext;
+let activeAudio;
+let activeAudioDone;
 
 export function getAudioContext() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -13,24 +15,53 @@ export function getAudioContext() {
   return sharedAudioContext;
 }
 
-export async function playLessonTarget(lesson, variant = "natural") {
-  const src = lesson.audio?.[variant];
+export async function playLessonTarget(lesson, variant = "natural", speaker = null) {
+  const src = resolveAudioSource(lesson.audio?.[variant], speaker);
 
   if (src) {
-    await playAudioFile(src);
-    return;
+    try {
+      await playAudioFile(src);
+      return;
+    } catch (error) {
+      // Fall back to the contour tone if a referenced static asset is unavailable.
+    }
   }
 
   await playSynthContour(lesson.contour, variant);
 }
 
+function resolveAudioSource(src, speaker) {
+  if (!src || !speaker?.root) {
+    return src;
+  }
+
+  return `${speaker.root}/${src.split("/").pop()}`;
+}
+
 async function playAudioFile(src) {
+  stopActiveAudio();
   const audio = new Audio(src);
+  activeAudio = audio;
   audio.preload = "auto";
-  await audio.play();
+  const ended = new Promise((resolve, reject) => {
+    activeAudioDone = resolve;
+    audio.addEventListener("ended", resolve, { once: true });
+    audio.addEventListener("error", () => reject(new Error("Audio playback failed.")), { once: true });
+  });
+
+  try {
+    await audio.play();
+    await ended;
+  } finally {
+    if (activeAudio === audio) {
+      activeAudio = null;
+      activeAudioDone = null;
+    }
+  }
 }
 
 async function playSynthContour(points, variant) {
+  stopActiveAudio();
   const context = getAudioContext();
   if (context.state !== "running") {
     await context.resume();
@@ -73,6 +104,18 @@ async function playSynthContour(points, variant) {
   await new Promise((resolve) => {
     oscillator.addEventListener("ended", resolve, { once: true });
   });
+}
+
+function stopActiveAudio() {
+  if (!activeAudio) {
+    return;
+  }
+
+  const done = activeAudioDone;
+  activeAudio.pause();
+  activeAudio = null;
+  activeAudioDone = null;
+  done?.();
 }
 
 function normalizedPitchToHz(y) {

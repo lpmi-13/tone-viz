@@ -31,7 +31,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -150,10 +151,10 @@ h3 {
 
 .mode-toggle {
   display: inline-grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
-  min-width: 202px;
+  min-width: 292px;
   background: var(--surface-strong);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -280,6 +281,14 @@ h3 {
   line-height: 1;
 }
 
+.lesson-card .tone-name {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
 .lesson-card .meta {
   display: flex;
   flex-wrap: wrap;
@@ -290,7 +299,8 @@ h3 {
 }
 
 .lesson-focus,
-.explore-panel {
+.explore-panel,
+.quiz-panel {
   min-width: 0;
   padding: 16px;
   border: 1px solid var(--border);
@@ -316,6 +326,48 @@ h3 {
   color: var(--muted);
 }
 
+.word-variant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+
+.word-variant {
+  min-width: 86px;
+  min-height: 62px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.word-variant.is-active {
+  border-color: var(--accent);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.word-variant .thai {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.word-variant span:last-child {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tone-chip {
   flex: 0 0 auto;
   min-width: 74px;
@@ -339,6 +391,26 @@ h3 {
   border-radius: 4px;
   background: #fef08a;
   color: #111827;
+}
+
+.cycle-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.button.compact {
+  min-height: 38px;
+  padding: 8px 10px;
+  font-size: 0.88rem;
+}
+
+.phrase-count {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .calibration-panel {
@@ -596,6 +668,29 @@ h3 {
   accent-color: var(--accent);
 }
 
+.select-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.select-field select {
+  min-height: 38px;
+  padding: 7px 32px 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.speaker-select {
+  flex: 0 0 auto;
+}
+
 .status-text {
   color: var(--muted);
   font-size: 0.9rem;
@@ -620,6 +715,31 @@ h3 {
   background: #f0fdfa;
   color: #134e4a;
   font-weight: 750;
+}
+
+.quiz-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.quiz-option {
+  min-height: 56px;
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.quiz-option.is-correct {
+  border-color: var(--accent);
+  background: #ccfbf1;
+  color: var(--accent-dark);
+}
+
+.quiz-option.is-wrong {
+  border-color: var(--danger);
+  background: #fee2e2;
+  color: var(--danger);
 }
 
 .attempt-history {
@@ -654,7 +774,7 @@ h3 {
 
   .top-actions {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto auto minmax(0, 1fr);
     align-items: center;
   }
 
@@ -665,6 +785,10 @@ h3 {
   .mode-toggle {
     width: 100%;
     min-width: 0;
+  }
+
+  .speaker-select {
+    justify-self: start;
   }
 
   #practiceMode {
@@ -682,8 +806,21 @@ h3 {
     scroll-snap-align: start;
   }
 
+  .word-variant-list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .word-variant {
+    flex: 0 0 112px;
+    scroll-snap-align: start;
+  }
+
   .lesson-focus,
-  .explore-panel {
+  .explore-panel,
+  .quiz-panel {
     padding: 12px;
   }
 
@@ -700,8 +837,21 @@ h3 {
     grid-template-columns: 1fr 1fr;
   }
 
+  .cycle-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .phrase-count {
+    grid-column: 1 / -1;
+  }
+
   .control-row .record {
     grid-column: 1 / -1;
+  }
+
+  .quiz-options {
+    grid-template-columns: 1fr 1fr;
   }
 
   .button,
@@ -716,8 +866,13 @@ h3 {
 }
 
 @media (max-width: 460px) {
-  .control-row {
+  .control-row,
+  .cycle-row {
     grid-template-columns: 1fr;
+  }
+
+  .phrase-count {
+    grid-column: auto;
   }
 
   .calibration-grid {
@@ -732,5 +887,9 @@ h3 {
 
   .tone-chip {
     text-align: left;
+  }
+
+  .quiz-options {
+    grid-template-columns: 1fr;
   }
 }

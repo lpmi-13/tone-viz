@@ -1,6 +1,28 @@
 import { registerBands, toneTemplates } from "./data.js";
+import type {
+  ComparisonCue,
+  ComparisonSegment,
+  DrawToneChartOptions,
+  RegisterBand,
+  ToneId,
+  TonePoint
+} from "./types.js";
 
-const colors = {
+interface PlotArea {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+interface DrawCurveOptions {
+  stroke: string;
+  width: number;
+  alpha?: number;
+  dash?: number[];
+}
+
+const colors: Record<string, string> = {
   target: "#102a43",
   learner: "#b423b6",
   grid: "#cbd5e1",
@@ -13,7 +35,7 @@ const colors = {
   high: "#fff2cf"
 };
 
-export function drawToneChart(canvas, options = {}) {
+export function drawToneChart(canvas: HTMLCanvasElement, options: DrawToneChartOptions = {}): void {
   const {
     target = null,
     learner = null,
@@ -26,6 +48,9 @@ export function drawToneChart(canvas, options = {}) {
   } = options;
 
   const context = canvas.getContext("2d");
+  if (!context) {
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   const width = Math.max(320, Math.floor(rect.width || canvas.width));
@@ -81,7 +106,7 @@ export function drawToneChart(canvas, options = {}) {
   drawAxisLabels(context, plot, freeform);
 }
 
-function drawBands(context, plot) {
+function drawBands(context: CanvasRenderingContext2D, plot: PlotArea): void {
   for (const band of registerBands) {
     context.fillStyle = colors[band.id];
     const yTop = yToCanvas(plot, band.to);
@@ -94,7 +119,7 @@ function drawBands(context, plot) {
   }
 }
 
-function drawGrid(context, plot) {
+function drawGrid(context: CanvasRenderingContext2D, plot: PlotArea): void {
   context.strokeStyle = colors.grid;
   context.lineWidth = 1;
   context.setLineDash([3, 5]);
@@ -120,7 +145,7 @@ function drawGrid(context, plot) {
   context.strokeRect(plot.left, plot.top, plot.right - plot.left, plot.bottom - plot.top);
 }
 
-function drawSegments(context, plot, segments) {
+function drawSegments(context: CanvasRenderingContext2D, plot: PlotArea, segments: ComparisonSegment[]): void {
   context.fillStyle = colors.highlight;
   for (const segment of segments) {
     const x = xToCanvas(plot, segment.start);
@@ -129,7 +154,7 @@ function drawSegments(context, plot, segments) {
   }
 }
 
-function drawTemplates(context, plot, activeToneId) {
+function drawTemplates(context: CanvasRenderingContext2D, plot: PlotArea, activeToneId: ToneId | null | undefined): void {
   for (const [toneId, template] of Object.entries(toneTemplates)) {
     drawCurve(context, plot, template.points, {
       stroke: template.color,
@@ -140,7 +165,12 @@ function drawTemplates(context, plot, activeToneId) {
   }
 }
 
-function drawCurve(context, plot, points, options) {
+function drawCurve(
+  context: CanvasRenderingContext2D,
+  plot: PlotArea,
+  points: TonePoint[],
+  options: DrawCurveOptions
+): void {
   const { stroke, width, alpha = 1, dash = [] } = options;
   context.save();
   context.globalAlpha = alpha;
@@ -165,7 +195,14 @@ function drawCurve(context, plot, points, options) {
   context.restore();
 }
 
-function drawEndpointLabel(context, plot, point, label, color, yOffset) {
+function drawEndpointLabel(
+  context: CanvasRenderingContext2D,
+  plot: PlotArea,
+  point: TonePoint,
+  label: string,
+  color: string,
+  yOffset: number
+): void {
   const x = Math.min(plot.right - 48, xToCanvas(plot, point.t) + 8);
   const y = clamp(yToCanvas(plot, point.y) + yOffset, plot.top + 14, plot.bottom - 8);
 
@@ -174,7 +211,13 @@ function drawEndpointLabel(context, plot, point, label, color, yOffset) {
   context.fillText(label, x, y);
 }
 
-function drawCues(context, plot, cues, learner, target) {
+function drawCues(
+  context: CanvasRenderingContext2D,
+  plot: PlotArea,
+  cues: ComparisonCue[],
+  learner: TonePoint[] | null,
+  target: TonePoint[] | null
+): void {
   context.save();
   context.strokeStyle = colors.cue;
   context.fillStyle = colors.cue;
@@ -210,7 +253,7 @@ function drawCues(context, plot, cues, learner, target) {
   context.restore();
 }
 
-function drawCueLabel(context, x, y, text) {
+function drawCueLabel(context: CanvasRenderingContext2D, x: number, y: number, text: string): void {
   const width = context.measureText(text).width + 12;
   context.fillStyle = "rgba(255, 255, 255, 0.92)";
   context.strokeStyle = "#fecaca";
@@ -222,10 +265,18 @@ function drawCueLabel(context, x, y, text) {
   context.fillText(text, x, y);
 }
 
-function roundedRect(context, x, y, width, height, radius) {
-  if (typeof context.roundRect === "function") {
+function roundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+): void {
+  const roundRect = (context as any).roundRect;
+  if (typeof roundRect === "function") {
     context.beginPath();
-    context.roundRect(x, y, width, height, radius);
+    roundRect.call(context, x, y, width, height, radius);
     return;
   }
 
@@ -243,7 +294,7 @@ function roundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
-function drawAxisLabels(context, plot, freeform) {
+function drawAxisLabels(context: CanvasRenderingContext2D, plot: PlotArea, freeform: boolean): void {
   context.fillStyle = colors.text;
   context.font = "800 12px system-ui, sans-serif";
   context.fillText("start", plot.left, plot.bottom + 24);
@@ -256,7 +307,7 @@ function drawAxisLabels(context, plot, freeform) {
   context.restore();
 }
 
-function drawEmpty(context, plot, emptyText) {
+function drawEmpty(context: CanvasRenderingContext2D, plot: PlotArea, emptyText: string): void {
   context.fillStyle = colors.muted;
   context.font = "800 16px system-ui, sans-serif";
   context.textAlign = "center";
@@ -264,7 +315,7 @@ function drawEmpty(context, plot, emptyText) {
   context.textAlign = "start";
 }
 
-function sampleCurve(points, t) {
+function sampleCurve(points: TonePoint[] | null, t: number): number {
   if (!points?.length) {
     return 0.5;
   }
@@ -285,14 +336,14 @@ function sampleCurve(points, t) {
   return points[points.length - 1].y;
 }
 
-function xToCanvas(plot, t) {
+function xToCanvas(plot: PlotArea, t: number): number {
   return plot.left + clamp(t, 0, 1) * (plot.right - plot.left);
 }
 
-function yToCanvas(plot, y) {
+function yToCanvas(plot: PlotArea, y: number): number {
   return plot.bottom - clamp(y, 0, 1) * (plot.bottom - plot.top);
 }
 
-function clamp(value, min, max) {
+function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

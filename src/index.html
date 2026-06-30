@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- build:csp -->
     <title>Thai Tone Visualizer</title>
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./assets/styles.css">
   </head>
   <body>
     <main class="app-shell">
@@ -100,7 +101,7 @@
               <span id="passiveRangePercent">0%</span>
             </div>
             <div class="progress-track" aria-hidden="true">
-              <span id="passiveRangeBar"></span>
+              <progress id="passiveRangeBar" max="100" value="0">0%</progress>
             </div>
             <p id="passiveRangeStatus">As you practice, the app will collect voiced pitch frames and refine your range after about 30 seconds of speech.</p>
           </div>
@@ -216,6 +217,6 @@
       </section>
     </main>
 
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./assets/app.js"></script>
   </body>
 </html>

@@ -4,13 +4,16 @@ A local-first browser MVP for Thai tone practice and pitch-contour exploration.
 
 ## Run
 
-Serve the folder over HTTP so browser module loading and microphone permissions work:
+Build the TypeScript app, then serve the generated `dist/` folder over HTTP so browser module loading and microphone permissions work:
 
 ```bash
-python3 -m http.server 5173
+npm run build
+python3 -m http.server 5173 -d dist
 ```
 
 Then open `http://localhost:5173`.
+
+The build writes JavaScript and CSS assets to `dist/assets/`, emits gzip and Brotli versions for each `.js` and `.css` asset, copies the static audio files into `dist/audio/`, and injects a Content Security Policy that directly names the built JS/CSS hashes.
 
 ## Audio
 
@@ -21,7 +24,7 @@ The MVP uses static generated Thai audio from Microsoft Edge/Azure-style Thai ne
 
 Premwadee is the default speaker, and the header speaker menu lets learners switch between the two. Audio files are referenced directly by the static app.
 
-To regenerate the lesson audio from `data.js`:
+To regenerate the lesson audio from `src/data.ts`:
 
 ```bash
 python3 scripts/generate_edge_tts.py

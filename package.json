@@ -1,0 +1,13 @@
+{
+  "name": "thai-tone-visualizer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:ts": "node scripts/clean-build.mjs && tsc -p tsconfig.json",
+    "build": "npm run build:ts && node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

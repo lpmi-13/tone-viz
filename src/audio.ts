@@ -1,9 +1,13 @@
-let sharedAudioContext;
-let activeAudio;
-let activeAudioDone;
+import type { AudioSpeaker, Lesson, PlaybackVariant, TonePoint } from "./types.js";
 
-export function getAudioContext() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+type AudioContextConstructor = new () => AudioContext;
+
+let sharedAudioContext: AudioContext | null = null;
+let activeAudio: HTMLAudioElement | null = null;
+let activeAudioDone: (() => void) | null = null;
+
+export function getAudioContext(): AudioContext {
+  const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext) as AudioContextConstructor | undefined;
   if (!AudioContextClass) {
     throw new Error("This browser does not expose the Web Audio API.");
   }
@@ -15,7 +19,11 @@ export function getAudioContext() {
   return sharedAudioContext;
 }
 
-export async function playLessonTarget(lesson, variant = "natural", speaker = null) {
+export async function playLessonTarget(
+  lesson: Lesson,
+  variant: PlaybackVariant = "natural",
+  speaker: AudioSpeaker | null = null
+): Promise<void> {
   const src = resolveAudioSource(lesson.audio?.[variant], speaker);
 
   if (src) {
@@ -30,7 +38,7 @@ export async function playLessonTarget(lesson, variant = "natural", speaker = nu
   await playSynthContour(lesson.contour, variant);
 }
 
-function resolveAudioSource(src, speaker) {
+function resolveAudioSource(src: string | undefined, speaker: AudioSpeaker | null): string | undefined {
   if (!src || !speaker?.root) {
     return src;
   }
@@ -38,14 +46,14 @@ function resolveAudioSource(src, speaker) {
   return `${speaker.root}/${src.split("/").pop()}`;
 }
 
-async function playAudioFile(src) {
+async function playAudioFile(src: string): Promise<void> {
   stopActiveAudio();
   const audio = new Audio(src);
   activeAudio = audio;
   audio.preload = "auto";
-  const ended = new Promise((resolve, reject) => {
-    activeAudioDone = resolve;
-    audio.addEventListener("ended", resolve, { once: true });
+  const ended = new Promise<void>((resolve, reject) => {
+    activeAudioDone = () => resolve();
+    audio.addEventListener("ended", () => resolve(), { once: true });
     audio.addEventListener("error", () => reject(new Error("Audio playback failed.")), { once: true });
   });
 
@@ -60,7 +68,7 @@ async function playAudioFile(src) {
   }
 }
 
-async function playSynthContour(points, variant) {
+async function playSynthContour(points: TonePoint[], variant: PlaybackVariant): Promise<void> {
   stopActiveAudio();
   const context = getAudioContext();
   if (context.state !== "running") {
@@ -106,7 +114,7 @@ async function playSynthContour(points, variant) {
   });
 }
 
-function stopActiveAudio() {
+function stopActiveAudio(): void {
   if (!activeAudio) {
     return;
   }
@@ -118,12 +126,12 @@ function stopActiveAudio() {
   done?.();
 }
 
-function normalizedPitchToHz(y) {
+function normalizedPitchToHz(y: number): number {
   const semitones = (clamp(y, 0, 1) - 0.5) * 14;
   return 185 * 2 ** (semitones / 12);
 }
 
-export async function decodeBlobToAudioBuffer(blob) {
+export async function decodeBlobToAudioBuffer(blob: Blob): Promise<AudioBuffer> {
   const context = getAudioContext();
   if (context.state !== "running") {
     await context.resume();
@@ -133,6 +141,6 @@ export async function decodeBlobToAudioBuffer(blob) {
   return context.decodeAudioData(arrayBuffer.slice(0));
 }
 
-function clamp(value, min, max) {
+function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }

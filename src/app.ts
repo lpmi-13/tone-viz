@@ -14,6 +14,19 @@ import { playLessonTarget, decodeBlobToAudioBuffer } from "./audio.js";
 import { analyzeAudioBuffer, buildCalibration } from "./pitch.js";
 import { compareContours } from "./compare.js";
 import { drawToneChart } from "./visualizer.js";
+import type {
+  AudioAnalysis,
+  AudioSpeaker,
+  CalibrationKey,
+  Lesson,
+  PassiveRange,
+  PitchNormalization,
+  PitchStats,
+  PlaybackVariant,
+  RecordingKind,
+  SpeakerProfile,
+  ToneId
+} from "./types.js";
 
 const CALIBRATION_STORAGE_KEY = "thai-tone-visualizer-calibration-v1";
 const PASSIVE_RANGE_STORAGE_KEY = "thai-tone-visualizer-passive-range-v1";
@@ -23,22 +36,22 @@ const PASSIVE_READY_SECONDS = 30;
 const PASSIVE_READY_FRAMES = 500;
 const PASSIVE_MAX_PITCHES = 4000;
 const HOLD_RECORDING_THRESHOLD_MS = 260;
-const CALIBRATION_LABELS = {
+const CALIBRATION_LABELS: Record<CalibrationKey, string> = {
   low: "Low",
   normal: "Normal",
   high: "High"
 };
-const CALIBRATION_PROMPTS = {
+const CALIBRATION_PROMPTS: Record<CalibrationKey, string> = {
   low: "Hold อา on a comfortable low pitch for 2 to 3 seconds.",
   normal: "Hold อา at your normal speaking pitch for 2 to 3 seconds.",
   high: "Hold อา on a comfortable high pitch for 2 to 3 seconds."
 };
-const TONE_OPTIONS = Object.entries(toneTemplates).map(([id, template]) => ({
-  id,
+const TONE_OPTIONS: Array<{ id: ToneId; label: string }> = Object.entries(toneTemplates).map(([id, template]) => ({
+  id: id as ToneId,
   label: template.label
 }));
 
-const state = {
+const state: any = {
   mode: "practice",
   selectedToneId: defaultSelection.toneId,
   selectedWordId: defaultSelection.wordId,
@@ -68,7 +81,7 @@ const state = {
   history: []
 };
 
-const elements = {
+const elements: any = {
   topbar: document.querySelector("#topbar"),
   privacyNote: document.querySelector("#privacyNote"),
   firstUseNote: document.querySelector("#firstUseNote"),
@@ -173,7 +186,7 @@ function bindEvents() {
     }
   });
   document.addEventListener("click", (event) => {
-    if (!elements.appMenu.classList.contains("is-hidden") && !event.target.closest(".menu-wrap")) {
+    if (!elements.appMenu.classList.contains("is-hidden") && !(event.target instanceof Element && event.target.closest(".menu-wrap"))) {
       closeAppMenu();
     }
   });
@@ -217,7 +230,7 @@ function startHoldGesture(event, button, kind) {
   }
 
   clearHoldTimer();
-  const gesture = {
+  const gesture: any = {
     pointerId: event.pointerId,
     kind,
     active: false,
@@ -273,7 +286,7 @@ function clearHoldTimer() {
   }
 }
 
-function setMode(mode) {
+function setMode(mode: "practice" | "quiz" | "explore") {
   state.mode = mode;
   elements.modeButtons.forEach((button) => {
     button.classList.toggle("is-active", button.dataset.mode === mode);
@@ -336,7 +349,7 @@ function renderWordVariants() {
   }
 }
 
-function selectTone(toneId) {
+function selectTone(toneId: string) {
   const group = getToneGroupById(toneId);
   const word = group.words[0];
   state.selectedToneId = group.id;
@@ -346,7 +359,7 @@ function selectTone(toneId) {
   render();
 }
 
-function selectWord(wordId) {
+function selectWord(wordId: string) {
   const word = getWordById(state.selectedToneId, wordId);
   state.selectedWordId = word.id;
   state.selectedPhraseVariantId = word.phraseVariants[0]?.id || null;
@@ -354,14 +367,14 @@ function selectWord(wordId) {
   render();
 }
 
-function cycleSelectedWord(direction) {
+function cycleSelectedWord(direction: number) {
   const group = getToneGroupById(state.selectedToneId);
   const currentIndex = group.words.findIndex((word) => word.id === state.selectedWordId);
   const nextIndex = wrapIndex(currentIndex + direction, group.words.length);
   selectWord(group.words[nextIndex].id);
 }
 
-function cycleSelectedPhrase(direction) {
+function cycleSelectedPhrase(direction: number) {
   const word = getWordById(state.selectedToneId, state.selectedWordId);
   if (word.phraseVariants.length < 2) {
     return;
@@ -380,7 +393,7 @@ function resetPracticeAttempt() {
   elements.feedback.value = "Record or upload a short syllable to compare your contour with the target.";
 }
 
-function wrapIndex(index, length) {
+function wrapIndex(index: number, length: number): number {
   if (length <= 0) {
     return 0;
   }
@@ -435,7 +448,7 @@ function render() {
   renderVisibility();
 }
 
-function renderContext(lesson) {
+function renderContext(lesson: Lesson) {
   elements.contextLine.replaceChildren();
   appendContextLine(elements.contextLine, lesson);
 }
@@ -464,7 +477,7 @@ function renderQuiz() {
   }
 }
 
-function appendContextLine(container, lesson) {
+function appendContextLine(container: HTMLElement, lesson: Lesson) {
   const context = lesson.contextThai;
 
   if (!context) {
@@ -521,7 +534,7 @@ function renderCharts() {
   });
 }
 
-async function playSelectedTarget(variant) {
+async function playSelectedTarget(variant: PlaybackVariant) {
   const lesson = getSelectedLesson();
   const speaker = getSelectedSpeaker();
   const messages = {
@@ -555,7 +568,7 @@ async function playQuizClip() {
   }
 }
 
-function answerQuiz(toneId) {
+function answerQuiz(toneId: ToneId) {
   if (state.quizAnsweredTone) {
     return;
   }
@@ -584,7 +597,7 @@ function nextQuizItem() {
   renderQuiz();
 }
 
-async function toggleRecording(kind) {
+async function toggleRecording(kind: RecordingKind) {
   if (state.recording) {
     stopRecording();
     return;
@@ -593,7 +606,7 @@ async function toggleRecording(kind) {
   await startRecording(kind);
 }
 
-async function startRecording(kind) {
+async function startRecording(kind: RecordingKind) {
   if (state.processingKind) {
     setStatus(kind, "Finish the current analysis before starting another recording.");
     return;
@@ -669,9 +682,10 @@ function getRecorderOptions() {
   return {};
 }
 
-async function handleUpload(event, kind) {
-  const [file] = event.target.files || [];
-  event.target.value = "";
+async function handleUpload(event: Event, kind: RecordingKind) {
+  const input = event.currentTarget as HTMLInputElement;
+  const [file] = input.files || [];
+  input.value = "";
 
   if (!file) {
     return;
@@ -680,7 +694,7 @@ async function handleUpload(event, kind) {
   await processBlob(file, kind);
 }
 
-async function processBlob(blob, kind) {
+async function processBlob(blob: Blob, kind: RecordingKind) {
   setStatus(kind, "Analyzing pitch contour.");
   setProcessing(kind, true);
 
@@ -714,7 +728,7 @@ async function processBlob(blob, kind) {
   }
 }
 
-function handlePracticeAnalysis(analysis) {
+function handlePracticeAnalysis(analysis: AudioAnalysis) {
   const lesson = getSelectedLesson();
   const comparison = compareContours(lesson.contour, analysis.points, lesson.tone);
   const calibrationNote = analysis.normalization?.calibrated
@@ -736,7 +750,7 @@ function handlePracticeAnalysis(analysis) {
   render();
 }
 
-function handleExploreAnalysis(analysis) {
+function handleExploreAnalysis(analysis: AudioAnalysis) {
   state.exploreAttempt = analysis;
   updatePassiveRange(analysis);
   elements.exploreFeedback.value = `${formatStats(analysis.stats, analysis.normalization)}${getRangeWarning(analysis.normalization)} Free-form mode does not grade tone correctness.`;
@@ -744,7 +758,7 @@ function handleExploreAnalysis(analysis) {
   renderCharts();
 }
 
-function handleCalibrationAnalysis(key, analysis) {
+function handleCalibrationAnalysis(key: CalibrationKey, analysis: AudioAnalysis) {
   state.calibrationSamples[key] = analysis;
   const stats = analysis.stats;
   const nextKey = ["low", "normal", "high"].find((candidate) => !state.calibrationSamples[candidate]);
@@ -827,7 +841,7 @@ function renderCalibration() {
   renderPassiveRange();
 }
 
-function getCalibrationSampleStatus(key) {
+function getCalibrationSampleStatus(key: CalibrationKey): string {
   const sample = state.calibrationSamples[key];
   if (!sample) {
     if (state.calibration?.samples?.[key]) {
@@ -840,7 +854,7 @@ function getCalibrationSampleStatus(key) {
   return `${Math.round(sample.stats.medianHz)} Hz, ${seconds.toFixed(1)}s`;
 }
 
-function updatePassiveRange(analysis) {
+function updatePassiveRange(analysis: AudioAnalysis) {
   const validPitches = analysis.frames
     .map((frame) => frame.f0)
     .filter((f0) => f0 >= 50 && f0 <= 600)
@@ -869,7 +883,8 @@ function renderPassiveRange() {
   const progress = getPassiveProgress(passive);
   const percent = Math.round(progress * 100);
   elements.passiveRangePercent.textContent = `${percent}%`;
-  elements.passiveRangeBar.style.width = `${percent}%`;
+  elements.passiveRangeBar.value = percent;
+  elements.passiveRangeBar.textContent = `${percent}%`;
 
   if (isPassiveRangeReady(passive)) {
     const profile = passive.profile;
@@ -953,19 +968,19 @@ function updateRecordingButtons() {
   renderCalibration();
 }
 
-function setProcessing(kind, active) {
+function setProcessing(kind: RecordingKind, active: boolean) {
   state.processingKind = active ? kind : null;
   updateRecordingButtons();
 }
 
-function setFileInputDisabled(input, disabled) {
+function setFileInputDisabled(input: HTMLInputElement, disabled: boolean) {
   input.disabled = disabled;
   const label = input.closest(".file-button");
   label?.classList.toggle("is-disabled", disabled);
   label?.setAttribute("aria-disabled", String(disabled));
 }
 
-function formatStats(stats, normalization = null) {
+function formatStats(stats: PitchStats, normalization: PitchNormalization | null = null): string {
   if (!stats || !stats.voicedFrameCount) {
     return "Pitch was unclear.";
   }
@@ -983,7 +998,7 @@ function formatStats(stats, normalization = null) {
   return `Detected ${stats.voicedFrameCount} voiced frames, median pitch ${Math.round(stats.medianHz)} Hz.${normalizationLabel}`;
 }
 
-function getRangeWarning(normalization) {
+function getRangeWarning(normalization: PitchNormalization | null | undefined): string {
   if (!normalization?.calibrated || !normalization.excursions?.hasExcursion) {
     return "";
   }
@@ -1000,7 +1015,7 @@ function getRangeWarning(normalization) {
   return "";
 }
 
-function setStatus(kind, message) {
+function setStatus(kind: RecordingKind, message: string) {
   if (isCalibrationKind(kind)) {
     setCalibrationStatus(message);
   } else if (kind === "practice") {
@@ -1010,15 +1025,15 @@ function setStatus(kind, message) {
   }
 }
 
-function setPracticeStatus(message) {
+function setPracticeStatus(message: string) {
   elements.practiceStatus.textContent = message;
 }
 
-function setExploreStatus(message) {
+function setExploreStatus(message: string) {
   elements.exploreStatus.textContent = message;
 }
 
-function setCalibrationStatus(message) {
+function setCalibrationStatus(message: string) {
   elements.calibrationStatus.textContent = message;
 }
 
@@ -1097,15 +1112,15 @@ function clearNormalizationDismissed() {
   }
 }
 
-function isCalibrationKind(kind) {
+function isCalibrationKind(kind: RecordingKind | string): kind is `calibration-${CalibrationKey}` {
   return kind.startsWith("calibration-");
 }
 
-function getCalibrationKey(kind) {
-  return kind.replace("calibration-", "");
+function getCalibrationKey(kind: `calibration-${CalibrationKey}`): CalibrationKey {
+  return kind.replace("calibration-", "") as CalibrationKey;
 }
 
-function getRecordingLimitMs(kind) {
+function getRecordingLimitMs(kind: RecordingKind): number {
   if (kind === "practice") {
     return 3600;
   }
@@ -1117,7 +1132,7 @@ function getRecordingLimitMs(kind) {
   return 6200;
 }
 
-function getRecordingMessage(kind) {
+function getRecordingMessage(kind: RecordingKind): string {
   if (isCalibrationKind(kind)) {
     const key = getCalibrationKey(kind);
     return `Recording ${CALIBRATION_LABELS[key].toLowerCase()} normalization. ${CALIBRATION_PROMPTS[key]} Release or tap again to stop.`;
@@ -1149,7 +1164,7 @@ function loadCalibration() {
   return null;
 }
 
-function persistCalibration(calibration) {
+function persistCalibration(calibration: SpeakerProfile): boolean {
   try {
     localStorage.setItem(CALIBRATION_STORAGE_KEY, JSON.stringify(calibration));
     return true;
@@ -1166,7 +1181,7 @@ function clearPersistedCalibration() {
   }
 }
 
-function getActiveSpeakerProfile() {
+function getActiveSpeakerProfile(): SpeakerProfile | null {
   const manual = normalizeSpeakerProfile(state.calibration);
   const passive = isPassiveRangeReady(state.passiveRange)
     ? normalizeSpeakerProfile(state.passiveRange.profile)
@@ -1194,7 +1209,7 @@ function getActiveSpeakerProfile() {
   return manual || passive;
 }
 
-function normalizeSpeakerProfile(profile) {
+function normalizeSpeakerProfile(profile: Partial<SpeakerProfile> | null | undefined): SpeakerProfile | null {
   if (!profile) {
     return null;
   }
@@ -1235,7 +1250,7 @@ function normalizeSpeakerProfile(profile) {
   };
 }
 
-function createEmptyPassiveRange() {
+function createEmptyPassiveRange(): PassiveRange {
   return {
     version: 1,
     pitches: [],
@@ -1245,8 +1260,8 @@ function createEmptyPassiveRange() {
   };
 }
 
-function computePassiveProfile(passiveRange) {
-  if (!passiveRange?.pitches?.length || !isPassiveRangeReady({ ...passiveRange, profile: {} }, false)) {
+function computePassiveProfile(passiveRange: PassiveRange): SpeakerProfile | null {
+  if (!passiveRange?.pitches?.length || !isPassiveRangeReady({ ...passiveRange, profile: null }, false)) {
     return null;
   }
 
@@ -1281,7 +1296,7 @@ function computePassiveProfile(passiveRange) {
   };
 }
 
-function isPassiveRangeReady(passiveRange, requireProfile = true) {
+function isPassiveRangeReady(passiveRange: PassiveRange | null, requireProfile = true): boolean {
   if (!passiveRange) {
     return false;
   }
@@ -1293,7 +1308,7 @@ function isPassiveRangeReady(passiveRange, requireProfile = true) {
   return requireProfile ? enoughData && Boolean(passiveRange.profile) : enoughData;
 }
 
-function getPassiveProgress(passiveRange) {
+function getPassiveProgress(passiveRange: PassiveRange | null): number {
   if (!passiveRange) {
     return 0;
   }
@@ -1338,7 +1353,7 @@ function loadPassiveRange() {
   return createEmptyPassiveRange();
 }
 
-function persistPassiveRange(passiveRange) {
+function persistPassiveRange(passiveRange: PassiveRange) {
   try {
     localStorage.setItem(PASSIVE_RANGE_STORAGE_KEY, JSON.stringify(passiveRange));
   } catch (error) {
@@ -1354,7 +1369,7 @@ function clearPersistedPassiveRange() {
   }
 }
 
-function quantile(values, position) {
+function quantile(values: number[], position: number): number {
   if (values.length === 0) {
     return 0;
   }
@@ -1367,19 +1382,19 @@ function quantile(values, position) {
   return values[lower] * (1 - weight) + values[upper] * weight;
 }
 
-function hzToSemitone(hz) {
+function hzToSemitone(hz: number): number {
   return 12 * Math.log2(hz / 440);
 }
 
-function semitoneToHz(semitone) {
+function semitoneToHz(semitone: number): number {
   return 440 * 2 ** (semitone / 12);
 }
 
-function firstFinite(...values) {
+function firstFinite(...values: Array<number | null | undefined>): number | undefined {
   return values.find((value) => Number.isFinite(value));
 }
 
-function getSelectedLesson() {
+function getSelectedLesson(): Lesson {
   return getLessonSelection(
     state.selectedToneId,
     state.selectedWordId,
@@ -1387,11 +1402,11 @@ function getSelectedLesson() {
   );
 }
 
-function getQuizLesson() {
+function getQuizLesson(): Lesson {
   return getQuizLessonById(state.quizLessonId);
 }
 
-function getSelectedSpeaker() {
+function getSelectedSpeaker(): AudioSpeaker {
   return audioSpeakers.find((speaker) => speaker.id === state.selectedSpeakerId) || audioSpeakers[0];
 }
 

@@ -1,3 +1,13 @@
+import type {
+  AudioAnalysis,
+  CalibrationResult,
+  CalibrationSamples,
+  PitchFrame,
+  PitchStats,
+  SpeakerProfile,
+  TonePoint
+} from "./types.js";
+
 const DEFAULT_MIN_F0 = 75;
 const DEFAULT_MAX_F0 = 520;
 const YIN_THRESHOLD = 0.14;
@@ -5,7 +15,24 @@ const MIN_CALIBRATION_FRAMES = 70;
 const MIN_CALIBRATION_VOICED_SECONDS = 0.9;
 const MIN_CALIBRATION_SPAN_SEMITONES = 5;
 
-export function analyzeAudioBuffer(audioBuffer, options = {}) {
+interface AnalyzeOptions {
+  calibration?: SpeakerProfile | null;
+}
+
+interface YinPitch {
+  frequency: number;
+  confidence: number;
+}
+
+interface NormalizationRange {
+  mode: string;
+  source?: string;
+  low: number;
+  mid: number | null;
+  high: number;
+}
+
+export function analyzeAudioBuffer(audioBuffer: AudioBuffer, options: AnalyzeOptions = {}): AudioAnalysis {
   const samples = mixToMono(audioBuffer);
   const frames = extractPitchFrames(samples, audioBuffer.sampleRate);
   const normalized = normalizePitchFrames(frames, options.calibration);
@@ -19,7 +46,7 @@ export function analyzeAudioBuffer(audioBuffer, options = {}) {
   };
 }
 
-export function buildCalibration(samples) {
+export function buildCalibration(samples: CalibrationSamples): CalibrationResult {
   const required = ["low", "normal", "high"];
   const missing = required.filter((key) => !samples?.[key]?.frames?.length);
   if (missing.length) {
@@ -90,13 +117,13 @@ export function buildCalibration(samples) {
           medianHz: sampleStats[key].medianHz
         }
       ])
-    )
+    ) as SpeakerProfile["samples"]
   };
 
   return { calibration, error: null };
 }
 
-function mixToMono(audioBuffer) {
+function mixToMono(audioBuffer: AudioBuffer): Float32Array {
   const channelCount = audioBuffer.numberOfChannels;
   const length = audioBuffer.length;
   const output = new Float32Array(length);
@@ -111,7 +138,7 @@ function mixToMono(audioBuffer) {
   return output;
 }
 
-function extractPitchFrames(samples, sampleRate) {
+function extractPitchFrames(samples: Float32Array, sampleRate: number): PitchFrame[] {
   const windowSize = sampleRate >= 44100 ? 2048 : 1536;
   const hopSize = Math.floor(windowSize / 4);
   const frames = [];
@@ -140,7 +167,7 @@ function extractPitchFrames(samples, sampleRate) {
   return removePitchOutliers(frames);
 }
 
-function yinPitch(frame, sampleRate, minF0, maxF0) {
+function yinPitch(frame: Float32Array, sampleRate: number, minF0: number, maxF0: number): YinPitch | null {
   const tauMin = Math.max(2, Math.floor(sampleRate / maxF0));
   const tauMax = Math.min(Math.floor(sampleRate / minF0), frame.length - 2);
   const comparisonLength = frame.length - tauMax;
@@ -190,7 +217,7 @@ function yinPitch(frame, sampleRate, minF0, maxF0) {
   };
 }
 
-function refineTau(cmnd, tau) {
+function refineTau(cmnd: Float32Array, tau: number): number {
   const left = cmnd[tau - 1];
   const center = cmnd[tau];
   const right = cmnd[tau + 1];
@@ -203,7 +230,7 @@ function refineTau(cmnd, tau) {
   return tau + (left - right) / (2 * divisor);
 }
 
-function normalizePitchFrames(frames, calibration = null) {
+function normalizePitchFrames(frames: PitchFrame[], calibration: SpeakerProfile | null = null): Omit<AudioAnalysis, "frames"> {
   if (frames.length < 4) {
     return {
       points: [],
@@ -237,11 +264,13 @@ function normalizePitchFrames(frames, calibration = null) {
       excursions.maxBelowSemitones = Math.max(excursions.maxBelowSemitones, range.low - semitone);
     }
 
+    const outOfRange: TonePoint["outOfRange"] = rawY > 1 ? "above" : rawY < 0 ? "below" : null;
+
     return {
       t: clamp((frame.time - firstTime) / duration, 0, 1),
       y: clamp(rawY, 0, 1),
       rawY,
-      outOfRange: rawY > 1 ? "above" : rawY < 0 ? "below" : null,
+      outOfRange,
       hz: frame.f0,
       confidence: frame.confidence
     };
@@ -266,7 +295,7 @@ function normalizePitchFrames(frames, calibration = null) {
   };
 }
 
-function getNormalizationRange(semitones, calibration) {
+function getNormalizationRange(semitones: number[], calibration: SpeakerProfile | null): NormalizationRange {
   if (
     calibration &&
     Number.isFinite(calibration.rangeLowSemitone) &&
@@ -296,7 +325,7 @@ function getNormalizationRange(semitones, calibration) {
   };
 }
 
-function removePitchOutliers(frames) {
+function removePitchOutliers(frames: PitchFrame[]): PitchFrame[] {
   if (frames.length < 6) {
     return frames;
   }
@@ -306,7 +335,7 @@ function removePitchOutliers(frames) {
   return frames.filter((frame) => Math.abs(hzToSemitone(frame.f0) - median) <= 16);
 }
 
-function smoothPoints(points) {
+function smoothPoints(points: TonePoint[]): TonePoint[] {
   if (points.length < 5) {
     return points;
   }
@@ -324,7 +353,7 @@ function smoothPoints(points) {
   });
 }
 
-function buildStats(frames) {
+function buildStats(frames: PitchFrame[]): PitchStats {
   if (frames.length === 0) {
     return {
       voicedFrameCount: 0,
@@ -351,7 +380,7 @@ function buildStats(frames) {
   };
 }
 
-function getRms(frame) {
+function getRms(frame: Float32Array): number {
   let sum = 0;
   for (const sample of frame) {
     sum += sample * sample;
@@ -359,15 +388,15 @@ function getRms(frame) {
   return Math.sqrt(sum / frame.length);
 }
 
-function hzToSemitone(hz) {
+function hzToSemitone(hz: number): number {
   return 12 * Math.log2(hz / 440);
 }
 
-function semitoneToHz(semitone) {
+function semitoneToHz(semitone: number): number {
   return 440 * 2 ** (semitone / 12);
 }
 
-function quantile(values, position) {
+function quantile(values: number[], position: number): number {
   if (values.length === 0) {
     return 0;
   }
@@ -381,10 +410,10 @@ function quantile(values, position) {
   return sorted[lower] * (1 - weight) + sorted[upper] * weight;
 }
 
-function clamp(value, min, max) {
+function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function capitalize(value) {
+function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }

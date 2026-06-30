@@ -1,10 +1,23 @@
-export const registerBands = [
+import type {
+  AudioMap,
+  AudioSpeaker,
+  Lesson,
+  PhraseVariant,
+  RegisterBand,
+  TargetWordTiming,
+  ToneGroup,
+  ToneId,
+  ToneTemplateMap,
+  Word
+} from "./types.js";
+
+export const registerBands: RegisterBand[] = [
   { id: "low", label: "low register", from: 0, to: 0.34 },
   { id: "mid", label: "mid register", from: 0.34, to: 0.66 },
   { id: "high", label: "high register", from: 0.66, to: 1 }
 ];
 
-export const toneTemplates = {
+export const toneTemplates: ToneTemplateMap = {
   mid: {
     label: "Mid",
     color: "#0f766e",
@@ -51,7 +64,7 @@ export const toneTemplates = {
   }
 };
 
-export const audioSpeakers = [
+export const audioSpeakers: AudioSpeaker[] = [
   {
     id: "premwadee",
     label: "Premwadee",
@@ -70,21 +83,21 @@ export const defaultAudioSpeakerId = audioSpeakers[0].id;
 
 const DEFAULT_AUDIO_ROOT = audioSpeakers[0].root;
 
-function seedAudio(id) {
+function seedAudio(id: string): AudioMap {
   return {
     natural: `${DEFAULT_AUDIO_ROOT}/${id}-natural.mp3`,
     exaggerated: `${DEFAULT_AUDIO_ROOT}/${id}-slow.mp3`
   };
 }
 
-function seedPhraseAudio(id) {
+function seedPhraseAudio(id: string): AudioMap {
   return {
     phrase: `${DEFAULT_AUDIO_ROOT}/${id}-phrase.mp3`,
     phraseSlow: `${DEFAULT_AUDIO_ROOT}/${id}-phrase-slow.mp3`
   };
 }
 
-function generatedPhraseVariantAudio(id) {
+function generatedPhraseVariantAudio(id: string): AudioMap {
   return {
     natural: `${DEFAULT_AUDIO_ROOT}/${id}-natural.mp3`,
     exaggerated: `${DEFAULT_AUDIO_ROOT}/${id}-slow.mp3`,
@@ -93,7 +106,18 @@ function generatedPhraseVariantAudio(id) {
   };
 }
 
-function phrase(id, before, target, after, contextTranslation, options = {}) {
+function phrase(
+  id: string,
+  before: string,
+  target: string,
+  after: string,
+  contextTranslation: string,
+  options: {
+    targetWordTiming?: TargetWordTiming | null;
+    audio?: AudioMap;
+    sourceId?: string | null;
+  } = {}
+): PhraseVariant {
   return {
     id,
     contextThai: { before, target, after },
@@ -104,7 +128,7 @@ function phrase(id, before, target, after, contextTranslation, options = {}) {
   };
 }
 
-export const toneGroups = [
+export const toneGroups: ToneGroup[] = [
   {
     id: "mid",
     tone: "mid",
@@ -407,33 +431,33 @@ export const toneGroups = [
   }
 ];
 
-export const lessons = toneGroups.flatMap((group) =>
+export const lessons: Lesson[] = toneGroups.flatMap((group) =>
   group.words.map((word) => normalizeLesson(group, word, word.phraseVariants[0] || null))
 );
 
-export const quizLessons = toneGroups.flatMap((group) =>
+export const quizLessons: Lesson[] = toneGroups.flatMap((group) =>
   group.words.flatMap((word) => {
     const variants = word.phraseVariants.length ? word.phraseVariants : [null];
     return variants.map((variant) => normalizeLesson(group, word, variant));
   })
 );
 
-export const defaultSelection = {
+export const defaultSelection: { toneId: ToneId; wordId: string; phraseVariantId: string | null } = {
   toneId: toneGroups[0].id,
   wordId: toneGroups[0].words[0].id,
   phraseVariantId: toneGroups[0].words[0].phraseVariants[0]?.id || null
 };
 
-export function getToneGroupById(id) {
+export function getToneGroupById(id: string): ToneGroup {
   return toneGroups.find((group) => group.id === id) || toneGroups[0];
 }
 
-export function getWordById(toneId, wordId) {
+export function getWordById(toneId: string, wordId: string): Word {
   const group = getToneGroupById(toneId);
   return group.words.find((word) => word.id === wordId) || group.words[0];
 }
 
-export function getPhraseVariantById(word, phraseVariantId) {
+export function getPhraseVariantById(word: Word | null | undefined, phraseVariantId: string | null): PhraseVariant | null {
   if (!word?.phraseVariants?.length) {
     return null;
   }
@@ -441,14 +465,14 @@ export function getPhraseVariantById(word, phraseVariantId) {
   return word.phraseVariants.find((variant) => variant.id === phraseVariantId) || word.phraseVariants[0];
 }
 
-export function getLessonSelection(toneId, wordId, phraseVariantId) {
+export function getLessonSelection(toneId: string, wordId: string, phraseVariantId: string | null): Lesson {
   const group = getToneGroupById(toneId);
   const word = getWordById(group.id, wordId);
   const phraseVariant = getPhraseVariantById(word, phraseVariantId);
   return normalizeLesson(group, word, phraseVariant);
 }
 
-export function getLessonById(id) {
+export function getLessonById(id: unknown): Lesson {
   const [wordId, phraseVariantId] = splitLessonId(id);
 
   for (const group of toneGroups) {
@@ -461,11 +485,11 @@ export function getLessonById(id) {
   return lessons[0];
 }
 
-export function getQuizLessonById(id) {
+export function getQuizLessonById(id: string): Lesson {
   return quizLessons.find((lesson) => lesson.id === id) || quizLessons[0];
 }
 
-function normalizeLesson(group, word, phraseVariant) {
+function normalizeLesson(group: ToneGroup, word: Word, phraseVariant: PhraseVariant | null): Lesson {
   const audio = {
     ...(phraseVariant ? generatedPhraseVariantAudio(phraseVariant.id) : {}),
     ...(word.audio || {}),
@@ -493,7 +517,7 @@ function normalizeLesson(group, word, phraseVariant) {
   };
 }
 
-function splitLessonId(id) {
+function splitLessonId(id: unknown): [string, string | null] {
   if (typeof id !== "string") {
     return [lessons[0].wordId, lessons[0].phraseVariantId];
   }

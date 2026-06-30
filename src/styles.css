@@ -560,13 +560,31 @@ h3 {
   background: #dbe4ee;
 }
 
-.progress-track span {
+.progress-track progress {
   display: block;
-  width: 0%;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: inherit;
+  appearance: none;
+  background: transparent;
+}
+
+.progress-track progress::-webkit-progress-bar {
+  border-radius: inherit;
+  background: transparent;
+}
+
+.progress-track progress::-webkit-progress-value {
   border-radius: inherit;
   background: var(--accent);
   transition: width 180ms ease;
+}
+
+.progress-track progress::-moz-progress-bar {
+  border-radius: inherit;
+  background: var(--accent);
 }
 
 .passive-range p {

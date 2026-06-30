@@ -1,6 +1,32 @@
 import { toneTemplates } from "./data.js";
+import type {
+  ComparisonCue,
+  ComparisonSegment,
+  ContourComparison,
+  TemplateDiagnostic,
+  TemplateToneDiagnostic,
+  ToneId,
+  TonePoint
+} from "./types.js";
 
-export function compareContours(targetPoints, learnerPoints, toneId) {
+interface ContourError {
+  t: number;
+  diff: number;
+  abs: number;
+}
+
+interface FeedbackMetrics {
+  toneId: ToneId;
+  startDiff: number;
+  endDiff: number;
+  overallDiff: number;
+  targetDelta: number;
+  learnerDelta: number;
+  learnerMotion: number;
+  diagnostic: TemplateDiagnostic;
+}
+
+export function compareContours(targetPoints: TonePoint[], learnerPoints: TonePoint[], toneId: ToneId): ContourComparison {
   if (!learnerPoints || learnerPoints.length < 4) {
     return {
       feedback: "Pitch was unclear. Try recording in a quieter room or holding the vowel longer.",
@@ -45,7 +71,7 @@ export function compareContours(targetPoints, learnerPoints, toneId) {
   return { feedback, cues, segments, diagnostic };
 }
 
-export function resample(points, count = 80) {
+export function resample(points: TonePoint[], count = 80): TonePoint[] {
   if (!points || points.length === 0) {
     return [];
   }
@@ -63,7 +89,7 @@ export function resample(points, count = 80) {
   });
 }
 
-export function interpolateY(points, t) {
+export function interpolateY(points: TonePoint[], t: number): number {
   if (t <= points[0].t) {
     return points[0].y;
   }
@@ -81,7 +107,7 @@ export function interpolateY(points, t) {
   return points[points.length - 1].y;
 }
 
-function buildFeedback(metrics) {
+function buildFeedback(metrics: FeedbackMetrics): string {
   const {
     toneId,
     startDiff,
@@ -164,7 +190,7 @@ function buildFeedback(metrics) {
   return "The contour is close enough to compare visually. Refine the highlighted region.";
 }
 
-function buildTemplateDiagnostic(learner, targetToneId) {
+function buildTemplateDiagnostic(learner: TonePoint[], targetToneId: ToneId): TemplateDiagnostic {
   const comparisons = Object.entries(toneTemplates)
     .map(([toneId, template]) => {
       const templatePoints = resample(template.points, learner.length);
@@ -179,7 +205,7 @@ function buildTemplateDiagnostic(learner, targetToneId) {
       const templateEnd = averageY(templatePoints.slice(-14));
 
       return {
-        toneId,
+        toneId: toneId as ToneId,
         meanAbs: mean(diffs.map((error) => error.abs)),
         startDiff: learnerStart - templateStart,
         endDiff: learnerEnd - templateEnd,
@@ -207,7 +233,7 @@ function buildTemplateDiagnostic(learner, targetToneId) {
   };
 }
 
-function buildDiagnosticFeedback(toneId, diagnostic) {
+function buildDiagnosticFeedback(toneId: ToneId, diagnostic: TemplateDiagnostic | null): string {
   const closestTone = diagnostic?.closestOther?.toneId;
   if (!closestTone) {
     return "";
@@ -251,8 +277,14 @@ function buildDiagnosticFeedback(toneId, diagnostic) {
   return "";
 }
 
-function buildCues(errors, startDiff, endDiff, targetDelta, learnerDelta) {
-  const cues = [];
+function buildCues(
+  errors: ContourError[],
+  startDiff: number,
+  endDiff: number,
+  targetDelta: number,
+  learnerDelta: number
+): ComparisonCue[] {
+  const cues: ComparisonCue[] = [];
   const largest = [...errors].sort((a, b) => b.abs - a.abs)[0];
 
   if (Math.abs(startDiff) > 0.14) {
@@ -290,10 +322,10 @@ function buildCues(errors, startDiff, endDiff, targetDelta, learnerDelta) {
   return cues.slice(0, 2);
 }
 
-function buildSegments(errors) {
+function buildSegments(errors: ContourError[]): ComparisonSegment[] {
   const threshold = 0.17;
-  const segments = [];
-  let active = null;
+  const segments: ComparisonSegment[] = [];
+  let active: ComparisonSegment | null = null;
 
   for (const error of errors) {
     if (error.abs >= threshold && !active) {
@@ -315,7 +347,7 @@ function buildSegments(errors) {
   return segments.slice(0, 3);
 }
 
-function averageDiff(errors) {
+function averageDiff(errors: ContourError[]): number {
   if (errors.length === 0) {
     return 0;
   }
@@ -323,7 +355,7 @@ function averageDiff(errors) {
   return errors.reduce((sum, error) => sum + error.diff, 0) / errors.length;
 }
 
-function averageY(points) {
+function averageY(points: TonePoint[]): number {
   if (points.length === 0) {
     return 0;
   }
@@ -331,12 +363,12 @@ function averageY(points) {
   return points.reduce((sum, point) => sum + point.y, 0) / points.length;
 }
 
-function amplitude(points) {
+function amplitude(points: TonePoint[]): number {
   const values = points.map((point) => point.y);
   return Math.max(...values) - Math.min(...values);
 }
 
-function mean(values) {
+function mean(values: number[]): number {
   if (values.length === 0) {
     return 0;
   }

@@ -38,11 +38,11 @@ PHRASE_VARIANTS = {
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate static Thai lesson audio with edge-tts.")
-    parser.add_argument("--items", type=Path, help="Optional JSON item list. Defaults to data.js quiz lesson variants.")
+    parser.add_argument("--items", type=Path, help="Optional JSON item list. Defaults to src/data.ts quiz lesson variants.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--voice", action="append", help="Voice name. Can be repeated.")
     parser.add_argument("--include-phrases", action="store_true", help="Also generate context-phrase samples.")
-    parser.add_argument("--from-lesson-data", action="store_true", help="Generate items from data.js quiz lesson variants. This is the default when --items is omitted.")
+    parser.add_argument("--from-lesson-data", action="store_true", help="Generate items from src/data.ts quiz lesson variants. This is the default when --items is omitted.")
     parser.add_argument("--force", action="store_true", help="Regenerate files that already exist.")
     args = parser.parse_args()
 
@@ -57,15 +57,20 @@ def main() -> int:
         voices = DEFAULT_VOICES
 
     use_lesson_data = args.from_lesson_data or not args.items
-    items = load_lesson_items_from_data_js() if use_lesson_data else json.loads(args.items.read_text(encoding="utf-8"))
+    items = load_lesson_items_from_data_ts() if use_lesson_data else json.loads(args.items.read_text(encoding="utf-8"))
     include_phrases = args.include_phrases or use_lesson_data
     asyncio.run(generate_all(edge_tts, items, voices, args.output, include_phrases, args.force))
     return 0
 
 
-def load_lesson_items_from_data_js() -> list[dict]:
+def load_lesson_items_from_data_ts() -> list[dict]:
+    subprocess.run(
+        ["npm", "run", "build:ts"],
+        cwd=ROOT,
+        check=True,
+    )
     script = """
-      import { quizLessons } from "./data.js";
+      import { quizLessons } from "./.build/assets/data.js";
       const items = quizLessons.map((lesson) => ({
         id: lesson.phraseVariantId || lesson.id.replace(/[^a-zA-Z0-9_-]+/g, "-"),
         thai: lesson.thai,

@@ -33,13 +33,13 @@
         </div>
         <div class="top-actions">
           <div class="menu-wrap">
-            <button id="menuButton" class="menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="appMenu">
+            <button id="menuButton" class="menu-button" type="button" aria-label="Open app menu" aria-expanded="false" aria-controls="appMenu">
               <span></span>
               <span></span>
               <span></span>
             </button>
-            <div id="appMenu" class="app-menu is-hidden" role="menu">
-              <button id="calibrateMenuItem" type="button" role="menuitem">Calibrate</button>
+            <div id="appMenu" class="app-menu is-hidden">
+              <button id="calibrateMenuItem" type="button">Calibrate</button>
             </div>
           </div>
           <label class="select-field speaker-select">
@@ -49,9 +49,9 @@
             </select>
           </label>
           <nav class="mode-toggle" aria-label="Mode">
-            <button class="mode-button is-active" type="button" data-mode="practice">Practice</button>
-            <button class="mode-button" type="button" data-mode="quiz">Quiz</button>
-            <button class="mode-button" type="button" data-mode="explore">Explore</button>
+            <button class="mode-button is-active" type="button" data-mode="practice" aria-pressed="true">Practice</button>
+            <button class="mode-button" type="button" data-mode="quiz" aria-pressed="false">Quiz</button>
+            <button class="mode-button" type="button" data-mode="explore" aria-pressed="false">Explore</button>
           </nav>
         </div>
       </header>
@@ -73,7 +73,7 @@
           <div class="calibration-head">
             <div>
               <p class="eyebrow">Calibrate</p>
-              <h2 id="calibrationTitle">Calibration</h2>
+              <h1 id="calibrationTitle" class="calibration-title">Calibration</h1>
               <p id="calibrationSummary">Record three separate steady <strong>ah</strong> samples: comfortable low, normal speaking pitch, and comfortable high. Do not use a sentence.</p>
             </div>
             <div class="calibration-actions">
@@ -91,7 +91,7 @@
             <li><strong>High:</strong> hold <strong>ah</strong> on a comfortable high pitch for 2 to 3 seconds.</li>
           </ol>
 
-          <div class="calibration-grid" aria-label="Calibration samples">
+          <div class="calibration-grid" role="group" aria-label="Calibration samples">
             <button class="button calibration-button" type="button" data-calibration="low">
               <span>Low</span>
               <small id="calibrationLowStatus">Needed</small>
@@ -109,7 +109,7 @@
           <div class="control-row compact">
             <button id="saveCalibration" class="button primary" type="button">Save calibration</button>
             <button id="resetCalibration" class="button" type="button">Reset</button>
-            <span id="calibrationStatus" class="status-text">Start with Low: hold ah on a comfortable low pitch for 2 to 3 seconds.</span>
+            <span id="calibrationStatus" class="status-text" role="status" aria-live="polite" aria-atomic="true">Start with Low: hold ah on a comfortable low pitch for 2 to 3 seconds.</span>
           </div>
 
           <div class="passive-range">
@@ -127,7 +127,7 @@
 
       <section id="practiceMode" class="mode-panel">
         <div class="scroll-hint-row" data-scroll-hints>
-          <div class="lesson-rail" id="lessonList" aria-label="Thai tone examples" data-scroll-row></div>
+          <div class="lesson-rail" id="lessonList" role="group" aria-label="Thai tone examples" data-scroll-row></div>
           <button class="scroll-hint-arrow left" type="button" data-scroll-arrow="left" aria-label="Scroll tones left" aria-controls="lessonList"></button>
           <button class="scroll-hint-arrow right" type="button" data-scroll-arrow="right" aria-label="Scroll tones right" aria-controls="lessonList"></button>
         </div>
@@ -142,14 +142,14 @@
           </div>
 
           <div class="scroll-hint-row word-variant-scroll-row" data-scroll-hints>
-            <div class="word-variant-list" id="wordVariantList" aria-label="Target words for selected tone" data-scroll-row></div>
+            <div class="word-variant-list" id="wordVariantList" role="group" aria-label="Target words for selected tone" data-scroll-row></div>
             <button class="scroll-hint-arrow left" type="button" data-scroll-arrow="left" aria-label="Scroll words left" aria-controls="wordVariantList"></button>
             <button class="scroll-hint-arrow right" type="button" data-scroll-arrow="right" aria-label="Scroll words right" aria-controls="wordVariantList"></button>
           </div>
 
           <p class="context-line" id="contextLine"></p>
 
-          <div class="cycle-row" aria-label="Cycle phrase examples">
+          <div class="cycle-row" role="group" aria-label="Cycle phrase examples">
             <span id="phraseVariantLabel" class="phrase-count">Phrase 1 of 1</span>
             <button id="previousPhrase" class="button compact" type="button">Prev phrase</button>
             <button id="nextPhrase" class="button compact" type="button">Next phrase</button>
@@ -169,12 +169,13 @@
               <input id="showPracticeTemplates" type="checkbox">
               <span>Show tone templates</span>
             </label>
-            <span id="practiceStatus" class="status-text">Select a word, play the target, then tap or hold record.</span>
+            <span id="practiceStatus" class="status-text" role="status" aria-live="polite" aria-atomic="true">Select a word, play the target, then tap or hold record.</span>
           </div>
 
-          <canvas id="practiceCanvas" class="tone-canvas" width="960" height="480" aria-label="Target and learner pitch contours"></canvas>
+          <canvas id="practiceCanvas" class="tone-canvas" width="960" height="480" role="img" aria-label="Target and learner pitch contours" aria-describedby="practiceChartSummary"></canvas>
+          <p id="practiceChartSummary" class="sr-only"></p>
 
-          <output id="feedback" class="feedback">Record a short syllable to compare your contour with the target.</output>
+          <output id="feedback" class="feedback" role="status" aria-live="polite" aria-atomic="true">Record a short syllable to compare your contour with the target.</output>
 
           <section class="attempt-history" aria-labelledby="historyTitle">
             <h3 id="historyTitle">Recent Attempts</h3>
@@ -200,8 +201,8 @@
             <button id="nextQuizItem" class="button" type="button">Next item</button>
           </div>
 
-          <div id="quizOptions" class="quiz-options" aria-label="Tone choices"></div>
-          <output id="quizFeedback" class="feedback">Play the phrase, then choose the tone of the highlighted word.</output>
+          <div id="quizOptions" class="quiz-options" role="group" aria-label="Tone choices"></div>
+          <output id="quizFeedback" class="feedback" role="status" aria-live="polite" aria-atomic="true">Play the phrase, then choose the tone of the highlighted word.</output>
         </section>
       </section>
 
@@ -224,11 +225,12 @@
               <input id="showExploreTemplates" type="checkbox" checked>
               <span>Show tone templates</span>
             </label>
-            <span id="exploreStatus" class="status-text">Tap or hold record for one word or syllable.</span>
+            <span id="exploreStatus" class="status-text" role="status" aria-live="polite" aria-atomic="true">Tap or hold record for one word or syllable.</span>
           </div>
 
-          <canvas id="exploreCanvas" class="tone-canvas" width="960" height="480" aria-label="Free-form pitch contour"></canvas>
-          <output id="exploreFeedback" class="feedback">Free-form mode visualizes pitch without grading it.</output>
+          <canvas id="exploreCanvas" class="tone-canvas" width="960" height="480" role="img" aria-label="Free-form pitch contour" aria-describedby="exploreChartSummary"></canvas>
+          <p id="exploreChartSummary" class="sr-only"></p>
+          <output id="exploreFeedback" class="feedback" role="status" aria-live="polite" aria-atomic="true">Free-form mode visualizes pitch without grading it.</output>
         </section>
       </section>
     </main>

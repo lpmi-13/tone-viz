@@ -4,7 +4,7 @@
   --surface: #ffffff;
   --surface-strong: #f1f5f9;
   --text: #172033;
-  --muted: #64748b;
+  --muted: #475569;
   --border: #d7dee8;
   --target: #102a43;
   --learner: #b423b6;
@@ -139,7 +139,8 @@ h1 {
   letter-spacing: 0;
 }
 
-h2 {
+h2,
+.calibration-title {
   margin-bottom: 4px;
   font-size: clamp(1.4rem, 5vw, 2.4rem);
   line-height: 1.1;
@@ -250,6 +251,19 @@ h3 {
 
 .is-hidden {
   display: none;
+}
+
+.sr-only {
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  overflow: hidden;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .lesson-rail {
@@ -765,16 +779,10 @@ h3 {
 .select-field select {
   width: 164px;
   min-height: 38px;
-  padding: 7px 42px 7px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  appearance: none;
-  -webkit-appearance: none;
   background-color: var(--surface);
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m5 7 5 5 5-5' fill='none' stroke='%23172033' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.3'/%3E%3C/svg%3E");
-  background-position: right 14px center;
-  background-repeat: no-repeat;
-  background-size: 16px 16px;
   color: var(--text);
   font: inherit;
 }

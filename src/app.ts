@@ -8,6 +8,7 @@ import {
   getWordTextForSpeaker,
   getWordById,
   quizLessons,
+  registerBands,
   toneGroups,
   toneTemplates
 } from "./data.js";
@@ -19,6 +20,7 @@ import type {
   AudioAnalysis,
   AudioSpeaker,
   CalibrationKey,
+  ComparisonCue,
   Lesson,
   PassiveRange,
   PlaybackProgress,
@@ -27,7 +29,8 @@ import type {
   PlaybackVariant,
   RecordingKind,
   SpeakerProfile,
-  ToneId
+  ToneId,
+  TonePoint
 } from "./types.js";
 
 const CALIBRATION_STORAGE_KEY = "thai-tone-visualizer-calibration-v1";
@@ -144,6 +147,8 @@ const elements: any = {
   exploreStatus: document.querySelector("#exploreStatus"),
   practiceCanvas: document.querySelector("#practiceCanvas"),
   exploreCanvas: document.querySelector("#exploreCanvas"),
+  practiceChartSummary: document.querySelector("#practiceChartSummary"),
+  exploreChartSummary: document.querySelector("#exploreChartSummary"),
   feedback: document.querySelector("#feedback"),
   exploreFeedback: document.querySelector("#exploreFeedback"),
   historyList: document.querySelector("#historyList")
@@ -306,7 +311,9 @@ function setMode(mode: "practice" | "quiz" | "explore") {
   cancelContourPlayback();
   state.mode = mode;
   elements.modeButtons.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.mode === mode);
+    const active = button.dataset.mode === mode;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
   });
   renderVisibility();
   renderCharts();
@@ -380,6 +387,8 @@ function renderLessonList() {
     button.className = "lesson-card";
     button.dataset.toneId = group.id;
     const preview = group.words.map((word) => getWordTextForSpeaker(word, state.selectedSpeakerId).thai).join(" ");
+    button.setAttribute("aria-pressed", String(group.id === state.selectedToneId));
+    button.setAttribute("aria-label", `${group.toneLabelEnglish} tone, ${group.words.length} words: ${preview}`);
     button.innerHTML = `
       <span class="tone-name">${group.toneLabelEnglish}</span>
       <span class="meta"><strong>${group.words.length} words</strong><span>${preview}</span></span>
@@ -414,11 +423,14 @@ function renderWordVariants() {
     button.type = "button";
     button.className = "word-variant";
     button.dataset.wordId = word.id;
+    const active = word.id === state.selectedWordId;
+    button.setAttribute("aria-pressed", String(active));
+    button.setAttribute("aria-label", `${wordText.thai}, ${wordText.translation}`);
     button.innerHTML = `
       <span class="thai">${wordText.thai}</span>
       <span>${wordText.translation}</span>
     `;
-    button.classList.toggle("is-active", word.id === state.selectedWordId);
+    button.classList.toggle("is-active", active);
     button.addEventListener("click", () => {
       selectWord(word.id);
     });
@@ -506,7 +518,9 @@ function render() {
   renderCycleControls();
 
   for (const button of elements.lessonList.querySelectorAll(".lesson-card")) {
-    button.classList.toggle("is-active", button.dataset.toneId === lesson.toneId);
+    const active = button.dataset.toneId === lesson.toneId;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
   }
 
   renderCharts();
@@ -534,8 +548,14 @@ function renderQuiz() {
     button.className = "button quiz-option";
     button.textContent = option.label;
     button.disabled = Boolean(state.quizAnsweredTone);
+    button.setAttribute("aria-pressed", String(state.quizAnsweredTone === option.id));
     button.classList.toggle("is-correct", state.quizAnsweredTone && option.id === lesson.tone);
     button.classList.toggle("is-wrong", state.quizAnsweredTone === option.id && option.id !== lesson.tone);
+    if (state.quizAnsweredTone && option.id === lesson.tone) {
+      button.setAttribute("aria-label", `${option.label}, correct answer`);
+    } else if (state.quizAnsweredTone === option.id) {
+      button.setAttribute("aria-label", `${option.label}, selected answer`);
+    }
     button.addEventListener("click", () => answerQuiz(option.id));
     elements.quizOptions.append(button);
   }
@@ -603,6 +623,104 @@ function renderCharts() {
     emptyText: "Record audio",
     playback: getChartPlayback("explore")
   });
+
+  renderChartSummaries(lesson);
+}
+
+function renderChartSummaries(lesson: Lesson) {
+  elements.practiceChartSummary.textContent = buildPracticeChartSummary(lesson);
+  elements.exploreChartSummary.textContent = buildExploreChartSummary();
+}
+
+function buildPracticeChartSummary(lesson: Lesson): string {
+  const parts = [
+    `Practice chart for ${lesson.thai}, ${lesson.translation}, ${lesson.toneLabelEnglish.toLowerCase()} tone.`,
+    summarizeContour("Target", lesson.contour)
+  ];
+
+  if (state.practiceAttempt?.points?.length) {
+    parts.push(summarizeContour("Your attempt", state.practiceAttempt.points));
+  } else {
+    parts.push("No learner recording is plotted yet.");
+  }
+
+  if (state.practiceComparison?.feedback) {
+    parts.push(`Feedback: ${state.practiceComparison.feedback}`);
+  }
+
+  const cueSummary = summarizeCues(state.practiceComparison?.cues || []);
+  if (cueSummary) {
+    parts.push(cueSummary);
+  }
+
+  if (elements.showPracticeTemplates.checked) {
+    parts.push("Tone templates are shown for comparison.");
+  }
+
+  return parts.join(" ");
+}
+
+function buildExploreChartSummary(): string {
+  const parts = ["Free-form chart."];
+
+  if (state.exploreAttempt?.points?.length) {
+    parts.push(summarizeContour("Recording", state.exploreAttempt.points));
+  } else {
+    parts.push("No recording is plotted yet.");
+  }
+
+  if (elements.showExploreTemplates.checked) {
+    parts.push("Tone templates are shown for reference.");
+  }
+
+  return parts.join(" ");
+}
+
+function summarizeContour(label: string, points: TonePoint[] | null | undefined): string {
+  if (!points?.length) {
+    return `${label} contour is not available.`;
+  }
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  const yValues = points.map((point) => point.y).filter((value) => Number.isFinite(value));
+  if (!yValues.length || !Number.isFinite(first.y) || !Number.isFinite(last.y)) {
+    return `${label} includes ${points.length} plotted points.`;
+  }
+
+  const minY = Math.min(...yValues);
+  const maxY = Math.max(...yValues);
+  const direction = getContourDirection(first.y, last.y);
+
+  return `${label} ${direction} from ${getRegisterLabel(first.y)} to ${getRegisterLabel(last.y)}, spanning ${getRegisterLabel(minY)} through ${getRegisterLabel(maxY)} register.`;
+}
+
+function getContourDirection(startY: number, endY: number): string {
+  const delta = endY - startY;
+  if (delta > 0.12) {
+    return "rises";
+  }
+
+  if (delta < -0.12) {
+    return "falls";
+  }
+
+  return "stays mostly level";
+}
+
+function getRegisterLabel(y: number): string {
+  const band = registerBands.find((candidate) => y >= candidate.from && y <= candidate.to);
+  return band ? band.label.replace(" register", "") : "unknown";
+}
+
+function summarizeCues(cues: ComparisonCue[]): string {
+  if (!cues.length) {
+    return "";
+  }
+
+  const labels = cues.slice(0, 3).map((cue) => cue.label.toLowerCase());
+  const suffix = cues.length > labels.length ? ` and ${cues.length - labels.length} more` : "";
+  return `Feedback cues: ${labels.join(", ")}${suffix}.`;
 }
 
 function getChartPlayback(chart: "practice" | "explore") {
@@ -1298,11 +1416,13 @@ function toggleAppMenu() {
   const isOpen = !elements.appMenu.classList.contains("is-hidden");
   elements.appMenu.classList.toggle("is-hidden", isOpen);
   elements.menuButton.setAttribute("aria-expanded", String(!isOpen));
+  elements.menuButton.setAttribute("aria-label", isOpen ? "Open app menu" : "Close app menu");
 }
 
 function closeAppMenu() {
   elements.appMenu.classList.add("is-hidden");
   elements.menuButton.setAttribute("aria-expanded", "false");
+  elements.menuButton.setAttribute("aria-label", "Open app menu");
 }
 
 function hasDismissedCalibration() {
